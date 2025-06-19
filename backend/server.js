@@ -10,67 +10,88 @@ const PORT = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.json());
 
-// Function to load and parse pospoints.txt
+// Charger et parser pospoints.txt
 function loadPosPoints() {
   const filePath = path.join(__dirname, 'V1', 'pospoints.txt');
   const data = fs.readFileSync(filePath, 'utf-8');
-  return data.split('\n').filter(line => line.trim()).map(line => {
-    const [x, y, name] = line.split(';');
-    return { x: parseInt(x, 10), y: parseInt(y, 10), name: name.replace(/@/g, ' ') };
-  });
+  return data
+    .split('\n')
+    .filter(line => line.trim())
+    .map(line => {
+      const [x, y, name] = line.split(';');
+      return {
+        x: parseInt(x, 10),
+        y: parseInt(y, 10),
+        name: name.replace(/@/g, ' ').trim()
+      };
+    });
 }
 
+// Charger et parser metro.txt
 function loadMetroData() {
   const filePath = path.join(__dirname, 'V1', 'metro.txt');
   const data = fs.readFileSync(filePath, 'utf-8');
+
   const stations = [];
   const links = [];
+  const stationIds = new Set();
 
   data.split('\n').forEach(line => {
     line = line.trim();
+    if (!line) return;
 
-    // Parse station lines (V)
+    // Parse stations (V)
     if (line.startsWith('V')) {
-      const match = line.match(/^V\s+(\d+)\s+(.+?)\s*;(\d+)\s*;(True|False)\s*(\d+)/);
-      if (match) {
-        const [, id, name, lineNumber, terminusStr, branchingStr] = match;
-        stations.push({
-          id: id.trim(),
-          name: name.trim(),
-          lineNumber: lineNumber.trim(),
-          isTerminus: terminusStr === 'True',
+      try {
+        const content = line.slice(1).trim(); // remove leading 'V'
+        const [idName, lineNumber, isTerminusStr, branchingStr] = content.split(';').map(e => e.trim());
+        const [id, ...nameParts] = idName.split(/\s+/);
+        const name = nameParts.join(' ');
+
+        const station = {
+          id: id,
+          name: name,
+          lineNumber: lineNumber,
+          isTerminus: isTerminusStr.toLowerCase() === 'true',
           branching: parseInt(branchingStr, 10)
-        });
-      } else {
+        };
+
+        stations.push(station);
+        stationIds.add(id);
+      } catch (err) {
         console.warn(`Skipping malformed station line: ${line}`);
       }
     }
 
-    // Parse link lines (E)
+    // Parse links (E)
     else if (line.startsWith('E')) {
-      const parts = line.split(' ');
+      const parts = line.split(/\s+/);
       if (parts.length >= 4) {
-        const [, from, to, time] = parts;
-        links.push({
-          from: from.trim(),
-          to: to.trim(),
-          time: parseInt(time.trim(), 10)
-        });
+        let from = parts[1].trim();
+        let to = parts[2].trim();
+        const time = parseInt(parts[3].trim(), 10);
+
+        // Zero-pad the IDs to match the format in stationIds
+        from = from.padStart(4, '0');
+        to = to.padStart(4, '0');
+
+        if (!stationIds.has(from) || !stationIds.has(to)) {
+          console.warn(`Link references missing station(s): from=${from}, to=${to}`);
+        } else {
+          links.push({ from, to, time });
+        }
       } else {
         console.warn(`Skipping malformed link line: ${line}`);
       }
     }
   });
 
-  // Create the graph using stations and links
   const graph = createGraph(stations, links);
-
   return { stations, links, graph };
 }
 
 const posPoints = loadPosPoints();
-const { stations, links } = loadMetroData();
-const graph = createGraph(stations, links);
+const { stations, links, graph } = loadMetroData();
 
 app.get('/api/stations', (req, res) => {
   res.json(stations);
@@ -84,34 +105,44 @@ app.get('/api/pospoints', (req, res) => {
   res.json(posPoints);
 });
 
+app.get('/api/graph', (req, res) => {
+  res.json(graph);
+});
+
+app.get('/api/djikstra', (req, res) => {
+  const { startId } = req.query;
+  if (!startId || !graph[startId]) {
+    return res.status(400).json({ error: 'Invalid start station ID' });
+  }
+
+  const result = Djikstra(graph, startId);
+  res.json(result);
+});
+
 app.get('/api/journey', (req, res) => {
   const { from, to } = req.query;
-
-  // Debug: Log query parameters
-  console.log('Query Parameters:', req.query);
 
   // Normalize input names (trim and convert to lowercase)
   const normalizedFrom = from?.trim().toLowerCase();
   const normalizedTo = to?.trim().toLowerCase();
 
-  // Debug: Log normalized names
-  console.log('Normalized From:', normalizedFrom);
-  console.log('Normalized To:', normalizedTo);
-
   // Find the stations by normalized name
   const fromStation = stations.find(station => station.name.toLowerCase() === normalizedFrom);
   const toStation = stations.find(station => station.name.toLowerCase() === normalizedTo);
-
-  // Debug: Log found stations
-  console.log('From Station:', fromStation);
-  console.log('To Station:', toStation);
 
   if (!fromStation || !toStation) {
     return res.status(404).json({ error: 'Station not found' });
   }
 
+  // Debug: Log station IDs
+  console.log('From Station:', fromStation);
+  console.log('To Station:', toStation);
+
   // Run Dijkstra's algorithm to calculate the shortest path
   const result = Djikstra(graph, fromStation.id);
+
+  // Debug: Log Dijkstra result
+  console.log('Dijkstra Result:', result);
 
   // Extract the full path to the destination station
   const path = [];
@@ -123,9 +154,9 @@ app.get('/api/journey', (req, res) => {
     path.unshift({
       id: station.id,
       name: station.name,
-      distance: result[currentStationId]?.distance || Infinity
+      distance: result.distances[currentStationId] || Infinity
     });
-    currentStationId = result[currentStationId]?.previous;
+    currentStationId = result.previous[currentStationId];
   }
 
   if (path.length === 0 || path[0].id !== fromStation.id) {
@@ -136,25 +167,10 @@ app.get('/api/journey', (req, res) => {
     from: fromStation,
     to: toStation,
     path, // Full path of stations
-    totalDistance: result[toStation.id]?.distance || Infinity
+    totalDistance: result.distances[toStation.id] || Infinity
   });
 });
 
-app.get('/api/graph', (req, res) => {
-  res.json(graph);
-});
-
-app.get('/api/djikstra', (req, res) => { 
-  const { startId } = req.query;
-
-  if (!startId || !graph[startId]) {
-    return res.status(400).json({ error: 'Invalid start station ID' });
-  }
-
-  const result = Djikstra(graph, startId);
-  res.json(result);
-});
-
 app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+  console.log(`✅ Server running on port ${PORT}`);
 });
