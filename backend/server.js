@@ -2,7 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const fs = require('fs');
 const path = require('path');
-const { createGraph, Djikstra } = require('./algorithms/graph');
+const { createGraph, Djikstra, kruskal_acpm } = require('./algorithms/graph');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -166,9 +166,14 @@ app.get('/api/journey', (req, res) => {
   res.json({
     from: fromStation,
     to: toStation,
-    path, // Full path of stations
+    path,
     totalDistance: result.distances[toStation.id] || Infinity
   });
+});
+
+app.get('/api/kruskal', (req, res) => {
+  const mst = kruskal_acpm(graph);
+  res.json(mst);
 });
 
 app.listen(PORT, () => {

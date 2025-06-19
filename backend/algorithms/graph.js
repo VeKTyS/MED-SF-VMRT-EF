@@ -1,9 +1,3 @@
-/**
- * Creates a graph representation of the metro network.
- * @param {Array} stations - List of stations with their details.
- * @param {Array} links - List of links between stations with travel times.
- * @returns {Object} - Graph representation where each station is a node and links are edges with weights.
- */
 function createGraph(stations, links) {
   const graph = {};
 
@@ -58,12 +52,10 @@ function Djikstra(graph, startId) {
       }
     }
 
-    // If the smallest distance is Infinity, we are done
     if (distances[currentId] === Infinity) break;
 
     queue.delete(currentId);
 
-    // Update neighbors
     graph[currentId].neighbors.forEach(neighbor => {
       const alt = distances[currentId] + neighbor.weight;
       if (alt < distances[neighbor.id]) {
@@ -75,4 +67,60 @@ function Djikstra(graph, startId) {
 
   return { distances, previous };
 }
-module.exports = { createGraph, Djikstra };
+
+function kruskal_acpm(graph) {
+  const edges = [];
+  for (const id in graph) {
+    graph[id].neighbors.forEach(neighbor => {
+      edges.push({ from: id, to: neighbor.id, weight: neighbor.weight });
+    });
+  }
+
+  // Remove duplicates
+  const uniqueEdges = Array.from(new Set(edges.map(e => JSON.stringify(e)))).map(e => JSON.parse(e));
+
+  // Sort edges by weight
+  uniqueEdges.sort((a, b) => a.weight - b.weight);
+
+  const parent = {};
+  const rank = {};
+
+  function find(id) {
+    if (parent[id] === undefined) {
+      parent[id] = id;
+      rank[id] = 0;
+    }
+    if (parent[id] !== id) {
+      parent[id] = find(parent[id]);
+    }
+    return parent[id];
+  }
+
+  function union(id1, id2) {
+    const root1 = find(id1);
+    const root2 = find(id2);
+    if (root1 !== root2) {
+      if (rank[root1] > rank[root2]) {
+        parent[root2] = root1;
+      } else if (rank[root1] < rank[root2]) {
+        parent[root1] = root2;
+      } else {
+        parent[root2] = root1;
+        rank[root1]++;
+      }
+    }
+  }
+
+  const mst = [];
+  uniqueEdges.forEach(edge => {
+    if (find(edge.from) !== find(edge.to)) {
+      union(edge.from, edge.to);
+      mst.push(edge);
+    }
+  });
+
+  return mst;
+}
+
+
+module.exports = { createGraph, Djikstra, kruskal_acpm };
