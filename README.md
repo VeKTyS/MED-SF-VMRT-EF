@@ -2,7 +2,7 @@
 
 ## 🧠 Equipe
 
-- Lucas.V (Chef de projet)
+- Lucas.V (Chef de projet) : VeKTyS ou "abc" dans l'historique des commits
 - Maceo.M
 - Jonathan.R
 - Honesty.R
