@@ -8,7 +8,7 @@
 - Honesty.R
 - Cecilia.T
 
-## Thématique
+## ❓ Thématique
 
 - Optimisation & Réseaux de transports  
 - Algorithmes de graphe  
