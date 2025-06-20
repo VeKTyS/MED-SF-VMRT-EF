@@ -76,7 +76,6 @@ function kruskal_acpm(graph) {
     });
   }
 
-  // Remove duplicates
   const uniqueEdges = Array.from(new Set(edges.map(e => JSON.stringify(e)))).map(e => JSON.parse(e));
 
   // Sort edges by weight
@@ -122,5 +121,43 @@ function kruskal_acpm(graph) {
   return mst;
 }
 
+function prim_acpm(graph){
+  const mst = [];
+  const visited = new Set();
+  const edges = [];
 
-module.exports = { createGraph, Djikstra, kruskal_acpm };
+  // Start from the first node
+  const startNode = Object.keys(graph)[0];
+  visited.add(startNode);
+  
+  // Add all edges from the start node to the edges list
+  graph[startNode].neighbors.forEach(neighbor => {
+    edges.push({ from: startNode, to: neighbor.id, weight: neighbor.weight });
+  });
+
+  while (edges.length > 0) {
+    // Sort edges by weight
+    edges.sort((a, b) => a.weight - b.weight);
+    
+    // Get the smallest edge
+    const edge = edges.shift();
+    
+    if (visited.has(edge.to)) continue; // Skip if the destination is already visited
+
+    // Add edge to MST
+    mst.push(edge);
+    visited.add(edge.to);
+
+    // Add all edges from the newly visited node to the edges list
+    graph[edge.to].neighbors.forEach(neighbor => {
+      if (!visited.has(neighbor.id)) {
+        edges.push({ from: edge.to, to: neighbor.id, weight: neighbor.weight });
+      }
+    });
+  }
+
+  return mst;
+}
+
+
+module.exports = { createGraph, Djikstra, kruskal_acpm, prim_acpm };

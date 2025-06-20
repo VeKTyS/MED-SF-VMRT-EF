@@ -2,7 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const fs = require('fs');
 const path = require('path');
-const { createGraph, Djikstra, kruskal_acpm } = require('./algorithms/graph');
+const { createGraph, Djikstra, kruskal_acpm, prim_acpm} = require('./algorithms/graph');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -171,9 +171,34 @@ app.get('/api/journey', (req, res) => {
   });
 });
 
+// After loading posPoints and stations
+const posPointsMap = {};
+posPoints.forEach(p => { posPointsMap[p.name] = p; });
+
+// Helper to get station name from ID
+function getStationNameById(id) {
+  const st = stations.find(s => s.id === id);
+  return st ? st.name : null;
+}
+
 app.get('/api/kruskal', (req, res) => {
   const mst = kruskal_acpm(graph);
-  res.json(mst);
+  const mstEdges = mst.map(edge => ({
+    from: getStationNameById(edge.from),
+    to: getStationNameById(edge.to),
+    weight: edge.weight
+  })).filter(e => e.from && e.to);
+  res.json(mstEdges);
+});
+
+app.get('/api/prim', (req, res) => {
+  const mst = prim_acpm(graph);
+  const mstEdges = mst.map(edge => ({
+    from: getStationNameById(edge.from),
+    to: getStationNameById(edge.to),
+    weight: edge.weight
+  })).filter(e => e.from && e.to);
+  res.json(mstEdges);
 });
 
 app.listen(PORT, () => {

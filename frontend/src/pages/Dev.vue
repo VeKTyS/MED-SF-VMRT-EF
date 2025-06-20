@@ -9,7 +9,7 @@
         <div class="mode-switch">
           <label>
             <input type="radio" v-model="mode" value="route" />
-            Itinéraire (Bonjour RATP)
+            Itinéraire
           </label>
           <label>
             <input type="radio" v-model="mode" value="mst" />
@@ -69,7 +69,7 @@
         </div>
         <div v-if="mode === 'mst'" class="mst-controls">
           <button class="dev-search-btn" @click="drawKruskal">Afficher Kruskal</button>
-          <button class="dev-search-btn" disabled title="À venir">Afficher Prim (bientôt)</button>
+          <button class="dev-search-btn" @click="drawPrim">Afficher Prim</button>
         </div>
       </div>
       <div v-if="(mode === 'route' && roadmap.length) || (mode === 'mst' && roadmap.length)" class="roadmap-card">
@@ -218,10 +218,41 @@ export default {
         .map(st => [st.y, st.x]);
     },
     async drawKruskal() {
-      // Placeholder for MST logic
+      // Fetch MST edges from the backend
+      const res = await fetch(`${this.apiBase}/kruskal`);
+      const mstEdges = await res.json();
+      this.routeCoords = mstEdges
+        .map(({ from, to }) => {
+          const a = this.pospointsMap[from];
+          const b = this.pospointsMap[to];
+          return a && b ? [
+            [a.y, a.x],
+            [b.y, b.x]
+          ] : null;
+        })
+        .filter(Boolean);
       this.roadmap = [];
-      this.routeCoords = [];
     },
+
+    async drawPrim() {
+      // Fetch MST edges from the backend
+      const res = await fetch(`${this.apiBase}/prim`);
+      const mstEdges = await res.json();
+      // Convert to polylines in pixel CRS
+      this.routeCoords = mstEdges
+        .map(({ from, to }) => {
+          const a = this.pospointsMap[from];
+          const b = this.pospointsMap[to];
+          return a && b ? [
+            [a.y, a.x],
+            [b.y, b.x]
+          ] : null;
+        })
+        .filter(Boolean);
+      this.roadmap = [];
+    },
+
+
     filterStartSuggestions() {
       const input = this.startInput.trim().toLowerCase();
       this.filteredStartSuggestions = input
