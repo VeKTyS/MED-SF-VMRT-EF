@@ -1,122 +1,203 @@
 <!-- filepath: c:\Users\PC\Desktop\MED-SF-VMRT-EF\frontend\src\pages\Dev.vue -->
 <template>
-  <div>
-    <div class="controls">
-      <h3>Options</h3>
-      <div>
-        <label>
-          <input type="radio" v-model="mode" value="route" />
-          Itinéraire (Bonjour RATP)
-        </label>
-        <label>
-          <input type="radio" v-model="mode" value="mst" />
-          Arbre couvrant (ACPM)
-        </label>
-      </div>
-      <div v-if="mode === 'route'" class="route-controls">
-        <div class="autocomplete-group">
-          <label>Départ :</label>
-          <input
-            type="text"
-            v-model="startInput"
-            @input="filterStartSuggestions"
-            @focus="showStartSuggestions = true"
-            @blur="hideStartSuggestions"
-            autocomplete="off"
-            placeholder="Entrez une station"
-          />
-          <ul v-if="showStartSuggestions && filteredStartSuggestions.length" class="suggestions">
-            <li
-              v-for="suggestion in filteredStartSuggestions"
-              :key="suggestion"
-              @mousedown.prevent="selectStartSuggestion(suggestion)"
-            >
-              {{ suggestion }}
-            </li>
-          </ul>
+  <div class="main-layout">
+    <div class="center-panel">
+      <nav class="top-nav">
+        <a href="#" class="nav-link">Accueil</a> | <a href="#" class="nav-link">À propos</a>
+      </nav>
+      <div class="form-card">
+        <div class="mode-switch">
+          <label>
+            <input type="radio" v-model="mode" value="route" />
+            Itinéraire (Bonjour RATP)
+          </label>
+          <label>
+            <input type="radio" v-model="mode" value="mst" />
+            Arbre couvrant (ACPM)
+          </label>
         </div>
-        <div class="autocomplete-group">
-          <label>Arrivée :</label>
-          <input
-            type="text"
-            v-model="endInput"
-            @input="filterEndSuggestions"
-            @focus="showEndSuggestions = true"
-            @blur="hideEndSuggestions"
-            autocomplete="off"
-            placeholder="Entrez une station"
-          />
-          <ul v-if="showEndSuggestions && filteredEndSuggestions.length" class="suggestions">
-            <li
-              v-for="suggestion in filteredEndSuggestions"
-              :key="suggestion"
-              @mousedown.prevent="selectEndSuggestion(suggestion)"
-            >
-              {{ suggestion }}
-            </li>
-          </ul>
+        <div v-if="mode === 'route'" class="route-controls">
+          <div class="autocomplete-group">
+            <label>Départ :</label>
+            <input
+              type="text"
+              v-model="startInput"
+              @input="filterStartSuggestions"
+              @focus="showStartSuggestions = true"
+              @blur="hideStartSuggestions"
+              autocomplete="off"
+              placeholder="Entrez une station"
+            />
+            <ul v-if="showStartSuggestions && filteredStartSuggestions.length" class="suggestions">
+              <li
+                v-for="suggestion in filteredStartSuggestions"
+                :key="suggestion"
+                @mousedown.prevent="selectStartSuggestion(suggestion)"
+              >
+                {{ suggestion }}
+              </li>
+            </ul>
+          </div>
+          <div class="autocomplete-group">
+            <label>Arrivée :</label>
+            <input
+              type="text"
+              v-model="endInput"
+              @input="filterEndSuggestions"
+              @focus="showEndSuggestions = true"
+              @blur="hideEndSuggestions"
+              autocomplete="off"
+              placeholder="Entrez une station"
+            />
+            <ul v-if="showEndSuggestions && filteredEndSuggestions.length" class="suggestions">
+              <li
+                v-for="suggestion in filteredEndSuggestions"
+                :key="suggestion"
+                @mousedown.prevent="selectEndSuggestion(suggestion)"
+              >
+                {{ suggestion }}
+              </li>
+            </ul>
+          </div>
+          <button
+            class="dev-search-btn"
+            @click="fetchJourney"
+            :disabled="!startStation || !endStation || startStation === endStation"
+          >
+            Rechercher
+          </button>
         </div>
-        <button
-          @click="fetchJourney"
-          :disabled="!startStation || !endStation || startStation === endStation"
-        >
-          Calculer l'itinéraire
-        </button>
+        <div v-if="mode === 'mst'" class="mst-controls">
+          <button class="dev-search-btn" @click="drawKruskal">Afficher Kruskal</button>
+          <button class="dev-search-btn" disabled title="À venir">Afficher Prim (bientôt)</button>
+        </div>
       </div>
-      <div v-if="mode === 'mst'" class="mst-controls">
-        <button @click="drawKruskal">Afficher Kruskal</button>
-        <button disabled title="À venir">Afficher Prim (bientôt)</button>
+      <div v-if="(mode === 'route' && roadmap.length) || (mode === 'mst' && roadmap.length)" class="roadmap-card">
+        <div class="dev-time">
+          <span>Temps estimé</span>
+          <h2>00:22:51</h2>
+        </div>
+        <div class="dev-roadmap-details">
+          <h4>Roadmap</h4>
+          <ol>
+            <li v-for="station in roadmap" :key="station">{{ station }}</li>
+          </ol>
+        </div>
       </div>
     </div>
-
-    <div v-if="mode === 'route' && roadmap.length" class="roadmap">
-      <h4>Roadmap</h4>
-      <ol>
-        <li v-for="station in roadmap" :key="station">{{ station }}</li>
-      </ol>
+    <div class="map-panel">
+      <l-map
+        style="height: 100vh; width: 100%; min-width: 600px"
+        :zoom="0"
+        :center="[mapHeight / 2, mapWidth / 2]"
+        :crs="simpleCrs"
+        :maxBounds="[[0,0],[mapHeight,mapWidth]]"
+        :minZoom="-2"
+        :maxZoom="4"
+        :zoomControl="false"
+        :scrollWheelZoom="true"
+      >
+        <!-- Optionally, add a background image for your map here -->
+        <!--
+        <l-image-overlay
+          v-if="backgroundImage"
+          :url="backgroundImage"
+          :bounds="[[0,0],[mapHeight,mapWidth]]"
+        />
+        -->
+        <l-polyline
+          v-for="(edge, idx) in subwayEdges"
+          :key="idx"
+          :lat-lngs="edge"
+          color="#444"
+          :weight="2"
+        />
+        <l-polyline
+          v-if="routeCoords.length"
+          :lat-lngs="routeCoords"
+          color="#FFD600"
+          :weight="6"
+        />
+        <l-marker
+          v-for="station in pospoints"
+          :key="station.name"
+          :lat-lng="[station.y, station.x]"
+        >
+          <l-popup>{{ station.name }}</l-popup>
+        </l-marker>
+      </l-map>
     </div>
   </div>
 </template>
 
 <script>
+import { LMap, LTileLayer, LMarker, LPopup, LPolyline, LImageOverlay } from "@vue-leaflet/vue-leaflet";
+import "leaflet/dist/leaflet.css";
+import L from "leaflet";
+
 export default {
   name: "Dev",
+  components: { LMap, LTileLayer, LMarker, LPopup, LPolyline, LImageOverlay },
   data() {
     return {
       apiBase: "http://localhost:3000/api",
       pospoints: [],
       pospointsMap: {},
       stationNames: [],
+      subwayEdges: [],
+      roadmap: [],
+      routeCoords: [],
       mode: "route",
       startStation: "",
       endStation: "",
-      roadmap: [],
       // Autocomplete
       startInput: "",
       endInput: "",
       filteredStartSuggestions: [],
       filteredEndSuggestions: [],
       showStartSuggestions: false,
-      showEndSuggestions: false
+      showEndSuggestions: false,
+      // Simple CRS settings
+      simpleCrs: L.CRS.Simple,
+      mapWidth: 1000,   // Set to your network's pixel width
+      mapHeight: 800,   // Set to your network's pixel height
+      backgroundImage: null // Optionally, set a background image for your map
     };
   },
   async mounted() {
-    // Fetch all stations coordinates from /api/pospoints
+    // Fetch all station coordinates (should be in pixel coordinates: { name, x, y })
     this.pospoints = await fetch(`${this.apiBase}/pospoints`).then(r => r.json());
     this.pospointsMap = {};
     this.pospoints.forEach(p => {
       this.pospointsMap[p.name] = p;
     });
     this.stationNames = this.pospoints.map(p => p.name);
+
+    // Fetch subway edges
+    const edges = await fetch(`${this.apiBase}/edges`).then(r => r.json());
+    // edges: [ [fromName, toName], ... ]
+    this.subwayEdges = edges
+      .map(([from, to]) => {
+        const a = this.pospointsMap[from];
+        const b = this.pospointsMap[to];
+        return a && b ? [
+          [a.y, a.x],
+          [b.y, b.x]
+        ] : null;
+      })
+      .filter(Boolean);
+
+    // Optionally, set a background image (must match mapWidth/mapHeight)
+    // this.backgroundImage = require('@/assets/your-background.png');
   },
   watch: {
     mode(newMode) {
       this.roadmap = [];
+      this.routeCoords = [];
       this.startInput = "";
       this.endInput = "";
       this.startStation = "";
       this.endStation = "";
-      // Optionally, you can clear other state here if needed
     }
   },
   methods: {
@@ -126,14 +207,20 @@ export default {
       const data = await res.json();
       if (!data.path || !Array.isArray(data.path)) {
         this.roadmap = [];
+        this.routeCoords = [];
         return;
       }
       this.roadmap = data.path.map(st => st.name);
+      // Build the polyline for the route (in pixel coordinates)
+      this.routeCoords = data.path
+        .map(st => this.pospointsMap[st.name])
+        .filter(Boolean)
+        .map(st => [st.y, st.x]);
     },
     async drawKruskal() {
-      // Placeholder for ACPM logic if needed
-      // You can implement roadmap display for ACPM here if desired
+      // Placeholder for MST logic
       this.roadmap = [];
+      this.routeCoords = [];
     },
     filterStartSuggestions() {
       const input = this.startInput.trim().toLowerCase();
@@ -173,35 +260,77 @@ export default {
 };
 </script>
 
-<style>
-.controls {
-  margin-bottom: 1rem;
-  background: #f8f8f8;
-  padding: 1rem;
-  border-radius: 8px;
+<style scoped>
+.main-layout {
+  display: flex;
+  min-height: 100vh;
+  background: #181c23;
 }
-.roadmap {
-  margin-top: 1rem;
-  background: #f4f9ff;
-  padding: 1rem;
-  border-radius: 8px;
-  max-width: 400px;
+.center-panel {
+  width: 420px;
+  margin: 40px auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.top-nav {
+  width: 100%;
+  text-align: center;
+  margin-bottom: 18px;
+}
+.nav-link {
+  color: #3b82f6;
+  text-decoration: none;
+  font-size: 1rem;
+}
+.form-card {
+  background: #181e29;
+  border-radius: 12px;
+  box-shadow: 0 2px 12px #0004;
+  padding: 32px 24px;
+  width: 100%;
+  margin-bottom: 32px;
+}
+.mode-switch {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 1.5rem;
+  font-size: 1.1rem;
+}
+.mode-switch label {
+  cursor: pointer;
 }
 .route-controls {
   display: flex;
-  gap: 2rem;
-  align-items: flex-start;
+  flex-direction: column;
+  gap: 1.2rem;
   margin-bottom: 1rem;
 }
 .autocomplete-group {
   position: relative;
-  width: 250px;
+  width: 100%;
+}
+.autocomplete-group label {
+  font-size: 1rem;
+  margin-bottom: 0.2rem;
+  display: block;
+}
+.autocomplete-group input[type="text"] {
+  width: 100%;
+  margin-top: 6px;
+  padding: 8px;
+  border-radius: 6px;
+  border: none;
+  background: #232733;
+  color: #fff;
+  font-size: 1rem;
+  outline: none;
 }
 .suggestions {
   position: absolute;
   z-index: 10;
-  background: white;
-  border: 1px solid #ccc;
+  background: #232733;
+  border: 1px solid #444;
   border-top: none;
   width: 100%;
   max-height: 200px;
@@ -213,8 +342,67 @@ export default {
 .suggestions li {
   padding: 0.5rem;
   cursor: pointer;
+  color: #fff;
 }
 .suggestions li:hover {
-  background: #e6f0ff;
+  background: #1e90ff;
+  color: #fff;
+}
+.dev-search-btn {
+  width: 100%;
+  padding: 12px;
+  background: #1e90ff;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-size: 1.1rem;
+  margin-top: 10px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.dev-search-btn:hover {
+  background: #1565c0;
+}
+.roadmap-card {
+  background: #181e29;
+  border-radius: 12px;
+  box-shadow: 0 2px 12px #0004;
+  padding: 32px 24px;
+  width: 100%;
+  margin-top: 32px;
+  text-align: center;
+}
+.dev-time {
+  font-size: 1.1rem;
+  margin-bottom: 18px;
+}
+.dev-time h2 {
+  font-size: 2.2rem;
+  margin: 0;
+  color: #fff;
+  font-weight: 700;
+}
+.dev-roadmap-details {
+  margin-top: 12px;
+}
+.dev-roadmap-details h4 {
+  margin-bottom: 0.5rem;
+  color: #3b82f6;
+}
+.dev-roadmap-details ol {
+  margin: 0;
+  padding-left: 18px;
+  color: #bdbdbd;
+  font-size: 0.98rem;
+  text-align: left;
+}
+.dev-roadmap-details li {
+  margin-bottom: 2px;
+}
+.map-panel {
+  flex: 1;
+  min-width: 600px;
+  background: #181c23;
+  box-shadow: 2px 0 16px #000a;
 }
 </style>
