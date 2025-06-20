@@ -159,5 +159,27 @@ function prim_acpm(graph){
   return mst;
 }
 
+function connexite(graph){
+  const stationIds = Object.keys(graph);
+  const isolated = stationIds.filter(id => (graph[id] || []).length === 0);
+  console.log('Isolated stations:', isolated);
+  if (stationIds.length === 0) return true;
 
-module.exports = { createGraph, Djikstra, kruskal_acpm, prim_acpm };
+  const visited = new Set();
+  const queue = [stationIds[0]];
+
+  while (queue.length) {
+    const current = queue.shift();
+    visited.add(current);
+    const neighbors = graph[current] || [];
+    for (const neighbor of neighbors) {
+      if (!visited.has(neighbor)) {
+        queue.push(neighbor);
+        visited.add(neighbor);
+      }
+    }
+  }
+  return visited.size === stationIds.length;
+}
+
+module.exports = { createGraph, Djikstra, kruskal_acpm, prim_acpm, connexite};

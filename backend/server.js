@@ -2,7 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const fs = require('fs');
 const path = require('path');
-const { createGraph, Djikstra, kruskal_acpm, prim_acpm} = require('./algorithms/graph');
+const { createGraph, Djikstra, kruskal_acpm, prim_acpm, connexite} = require('./algorithms/graph');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -199,6 +199,31 @@ app.get('/api/prim', (req, res) => {
     weight: edge.weight
   })).filter(e => e.from && e.to);
   res.json(mstEdges);
+});
+
+
+app.get('/api/connexite', (req, res) => {
+  const stationIds = Object.keys(graph).filter(id => (graph[id] || []).length > 0);
+  if (stationIds.length === 0) return res.json({ connexe: true });
+
+  const visited = new Set();
+  const queue = [stationIds[0]];
+
+  while (queue.length) {
+    const current = queue.shift();
+    visited.add(current);
+    const neighbors = Array.isArray(graph[current]) ? graph[current] : [];
+    for (const neighbor of neighbors) {
+      if (!visited.has(neighbor)) {
+        queue.push(neighbor);
+        visited.add(neighbor);
+      }
+    }
+  }
+
+  const connexe = visited.size === stationIds.length;
+  console.log('Visited:', visited.size, 'Total:', stationIds.length);
+  res.json({ connexe });
 });
 
 app.listen(PORT, () => {
