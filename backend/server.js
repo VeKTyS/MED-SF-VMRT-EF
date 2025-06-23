@@ -1,30 +1,34 @@
 const express = require('express');
 const cors = require('cors');
 const fs = require('fs');
+const conn = require('./V2/config');
+const bodyParser = require('body-parser');
+require('dotenv').config();
+
 const path = require('path');
 const { createGraph, Djikstra, kruskal_acpm, prim_acpm, connexite} = require('./algorithms/graph');
 
 const app = express();
+app.use(bodyParser.json());
+app.use(bodyParser.urlencoded({ extended: false }));
 const PORT = process.env.PORT || 3000;
 
 app.use(cors());
 app.use(express.json());
 
 // Charger et parser pospoints.txt
-function loadPosPoints() {
-  const filePath = path.join(__dirname, 'V1', 'pospoints.txt');
-  const data = fs.readFileSync(filePath, 'utf-8');
-  return data
-    .split('\n')
-    .filter(line => line.trim())
-    .map(line => {
-      const [x, y, name] = line.split(';');
-      return {
-        x: parseInt(x, 10),
-        y: parseInt(y, 10),
-        name: name.replace(/@/g, ' ').trim()
-      };
+async function loadPosPointsFromDB() {
+  return new Promise((resolve, reject) => {
+    conn.query('SELECT stop_lon, stop_lat, stop_name FROM stops', (err, results) => {
+      if (err) return reject(err);
+      const points = results.map(row => ({
+        x: parseFloat(row.stop_lon),
+        y: parseFloat(row.stop_lat),
+        name: row.stop_name ? row.stop_name.trim() : ''
+      }));
+      resolve(points);
     });
+  });
 }
 
 // Charger et parser metro.txt
@@ -90,7 +94,6 @@ function loadMetroData() {
   return { stations, links, graph };
 }
 
-const posPoints = loadPosPoints();
 const { stations, links, graph } = loadMetroData();
 
 app.get('/api/stations', (req, res) => {
@@ -101,8 +104,24 @@ app.get('/api/links', (req, res) => {
   res.json(links);
 });
 
-app.get('/api/pospoints', (req, res) => {
-  res.json(posPoints);
+app.get('/api/pospointsmap', async (req, res) => {
+  try {
+    const posPoints = await loadPosPointsFromDB();
+    const posPointsMap = {};
+    posPoints.forEach(p => { posPointsMap[p.name] = p; });
+    res.json(posPointsMap);
+  } catch (err) {
+    res.status(500).json({ error: 'Database error', details: err });
+  }
+});
+
+app.get('/api/pospoints', async (req, res) => {
+  try {
+    const posPoints = await loadPosPointsFromDB();
+    res.json(posPoints);
+  } catch (err) {
+    res.status(500).json({ error: 'Database error', details: err });
+  }
 });
 
 app.get('/api/graph', (req, res) => {
@@ -171,10 +190,6 @@ app.get('/api/journey', (req, res) => {
     totalDistance: result.distances[toStation.id] || Infinity
   });
 });
-
-// After loading posPoints and stations
-const posPointsMap = {};
-posPoints.forEach(p => { posPointsMap[p.name] = p; });
 
 // Helper to get station name from ID
 function getStationNameById(id) {
