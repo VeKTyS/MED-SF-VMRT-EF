@@ -154,6 +154,7 @@ app.get('/api/journey', (req, res) => {
     path.unshift({
       id: station.id,
       name: station.name,
+      line: station.lineNumber,
       distance: result.distances[currentStationId] || Infinity
     });
     currentStationId = result.previous[currentStationId];
