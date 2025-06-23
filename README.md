@@ -1,6 +1,14 @@
 # 🚇 Optimisation des Temps de Trajets dans le Réseau de Transport Parisien - *Filière IT*
 
-## 🧠 Thématique
+## 🧠 Equipe
+
+- Lucas.V (Chef de projet) : VeKTyS ou "abc" dans l'historique des commits
+- Maceo.M
+- Jonathan.R
+- Honesty.R
+- Cecilia.T
+
+## ❓ Thématique
 
 - Optimisation & Réseaux de transports  
 - Algorithmes de graphe  
@@ -47,9 +55,9 @@ Le projet vise à développer une application capable d’**indiquer le chemin l
 
 ## 🛠️ Exigences Techniques
 
-- Choisir des **langages/frameworks** légers, rapides et déployables facilement.
-- Optimisation des **ressources CPU/Mémoire**
-- Éviter les algorithmes trop gourmands en énergie
+- Choisir des **langages/frameworks** légers, rapides et déployables facilement : Javascript 
+- Optimisation des **ressources CPU/Mémoire** : Stockage de données en cache et usage de ressource de taille raisonnable
+- Éviter les algorithmes trop gourmands en énergie : Algorithmes (Djisktra, Prim, Kruskal) optimisées
 
 ## 🔐 Sécurité
 
@@ -64,12 +72,12 @@ La solution devra garantir la **sécurité des données utilisateurs** tout en �
 
 ## 📝 Critères d’Évaluation
 
-| Version              | Note maximale | Spécificités attendues                                   |
-|----------------------|----------------|-----------------------------------------------------------|
-| Version 1            | 14/20          | Fonctions de base                                          |
-| Version 2            | 16/20          | Intégration du réseau 2024                                |
-| Version 3            | 18/20          | Respect des horaires, correspondances                     |
-| Version 3 + Bonus    | 20/20          | RER, heure d’arrivée, accessibilité                       |
+| Version              | Spécificités attendues                                    | Statut
+|----------------------|-----------------------------------------------------------|--------------------------
+| Version 1            | Fonctions de base                                         | FAIT (20/06/2025)
+| Version 2            | Intégration du réseau 2024                                | EN COURS
+| Version 3            | Respect des horaires, correspondances                     | EN ATTENTE
+| Version 3 + Bonus    | RER, heure d’arrivée, accessibilité                       | EN ATTENTE
 
 ## 🌱 Impact Environnemental
 
