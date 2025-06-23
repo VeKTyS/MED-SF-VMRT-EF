@@ -75,7 +75,9 @@
       <div v-if="(mode === 'route' && roadmap.length) || (mode === 'mst' && roadmap.length)" class="roadmap-card">
         <div class="dev-time">
           <span>Temps estimé</span>
-          <h2>00:21:51</h2>
+          <h2>
+            {{ formattedTime }}
+          </h2>
         </div>
         <div class="dev-roadmap-details">
           <h4>Roadmap</h4>
@@ -158,6 +160,7 @@ export default {
       mode: "route",
       startStation: "",
       endStation: "",
+      totalDistance: 0,
       // Autocomplete
       startInput: "",
       endInput: "",
@@ -208,6 +211,20 @@ export default {
       this.endStation = "";
     }
   },
+  computed: {
+    formattedTime() {
+      // Assuming totalDistance is in seconds
+      const total = Math.round(this.totalDistance);
+      const hours = Math.floor(total / 3600);
+      const minutes = Math.floor((total % 3600) / 60);
+      const seconds = total % 60;
+      return [
+        hours.toString().padStart(2, '0'),
+        minutes.toString().padStart(2, '0'),
+        seconds.toString().padStart(2, '0')
+      ].join(':');
+    }
+  },
   methods: {
     async fetchJourney() {
       if (!this.startStation || !this.endStation || this.startStation === this.endStation) return;
@@ -216,6 +233,7 @@ export default {
       if (!data.path || !Array.isArray(data.path)) {
         this.roadmap = [];
         this.routeCoords = [];
+        this.totalDistance = 0;
         return;
       }
       this.roadmap = data.path.map(st => ({
@@ -227,6 +245,7 @@ export default {
         .map(st => this.pospointsMap[st.name])
         .filter(Boolean)
         .map(st => [st.y, st.x]);
+      this.totalDistance = data.totalDistance || 0;
     },
     async drawKruskal() {
       // Placeholder for MST logic
