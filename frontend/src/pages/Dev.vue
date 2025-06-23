@@ -2,9 +2,6 @@
 <template>
   <div class="main-layout">
     <div class="center-panel">
-      <nav class="top-nav">
-        <a href="#" class="nav-link">Accueil</a> | <a href="#" class="nav-link">À propos</a>
-      </nav>
       <div class="form-card">
         <div class="mode-switch">
           <label>
