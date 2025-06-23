@@ -251,21 +251,17 @@ export default {
 
     filterStartSuggestions() {
       const input = this.startInput.trim().toLowerCase();
-      let suggestions = input
+      this.filteredStartSuggestions = input
         ? this.stationNames.filter(name => name.toLowerCase().includes(input) && name !== this.endStation)
         : [];
-      // Supprimer les doublons
-      this.filteredStartSuggestions = [...new Set(suggestions)];
       this.showStartSuggestions = !!this.filteredStartSuggestions.length;
       this.startStation = this.stationNames.includes(this.startInput) ? this.startInput : "";
     },
     filterEndSuggestions() {
       const input = this.endInput.trim().toLowerCase();
-      let suggestions = input
+      this.filteredEndSuggestions = input
         ? this.stationNames.filter(name => name.toLowerCase().includes(input) && name !== this.startStation)
         : [];
-      // Supprimer les doublons
-      this.filteredEndSuggestions = [...new Set(suggestions)];
       this.showEndSuggestions = !!this.filteredEndSuggestions.length;
       this.endStation = this.stationNames.includes(this.endInput) ? this.endInput : "";
     },
