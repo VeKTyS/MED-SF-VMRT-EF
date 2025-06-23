@@ -9,7 +9,7 @@
         <div class="mode-switch">
           <label>
             <input type="radio" v-model="mode" value="route" />
-            Itinéraire
+            Itinéraire (Bonjour RATP)
           </label>
           <label>
             <input type="radio" v-model="mode" value="mst" />
@@ -69,18 +69,26 @@
         </div>
         <div v-if="mode === 'mst'" class="mst-controls">
           <button class="dev-search-btn" @click="drawKruskal">Afficher Kruskal</button>
-          <button class="dev-search-btn" @click="drawPrim">Afficher Prim</button>
+          <button class="dev-search-btn" disabled title="À venir">Afficher Prim (bientôt)</button>
         </div>
       </div>
       <div v-if="(mode === 'route' && roadmap.length) || (mode === 'mst' && roadmap.length)" class="roadmap-card">
         <div class="dev-time">
           <span>Temps estimé</span>
-          <h2>00:22:51</h2>
+          <h2>00:21:51</h2>
         </div>
         <div class="dev-roadmap-details">
           <h4>Roadmap</h4>
           <ol>
-            <li v-for="station in roadmap" :key="station">{{ station }}</li>
+            <li v-for="station in roadmap" :key="station.name + station.line">
+              {{ station.name }} — Ligne {{ station.line }}
+              <span
+                v-if="station.correspondance"
+                class="correspondance-label"
+              >
+                (Correspondance : {{ station.fromLine }} → {{ station.toLine }})
+              </span>
+            </li>
           </ol>
         </div>
       </div>
@@ -210,7 +218,10 @@ export default {
         this.routeCoords = [];
         return;
       }
-      this.roadmap = data.path.map(st => st.name);
+      this.roadmap = data.path.map(st => ({
+        name: st.name,
+        line: st.line
+      })); 
       // Build the polyline for the route (in pixel coordinates)
       this.routeCoords = data.path
         .map(st => this.pospointsMap[st.name])
@@ -218,41 +229,10 @@ export default {
         .map(st => [st.y, st.x]);
     },
     async drawKruskal() {
-      // Fetch MST edges from the backend
-      const res = await fetch(`${this.apiBase}/kruskal`);
-      const mstEdges = await res.json();
-      this.routeCoords = mstEdges
-        .map(({ from, to }) => {
-          const a = this.pospointsMap[from];
-          const b = this.pospointsMap[to];
-          return a && b ? [
-            [a.y, a.x],
-            [b.y, b.x]
-          ] : null;
-        })
-        .filter(Boolean);
+      // Placeholder for MST logic
       this.roadmap = [];
+      this.routeCoords = [];
     },
-
-    async drawPrim() {
-      // Fetch MST edges from the backend
-      const res = await fetch(`${this.apiBase}/prim`);
-      const mstEdges = await res.json();
-      // Convert to polylines in pixel CRS
-      this.routeCoords = mstEdges
-        .map(({ from, to }) => {
-          const a = this.pospointsMap[from];
-          const b = this.pospointsMap[to];
-          return a && b ? [
-            [a.y, a.x],
-            [b.y, b.x]
-          ] : null;
-        })
-        .filter(Boolean);
-      this.roadmap = [];
-    },
-
-
     filterStartSuggestions() {
       const input = this.startInput.trim().toLowerCase();
       this.filteredStartSuggestions = input
