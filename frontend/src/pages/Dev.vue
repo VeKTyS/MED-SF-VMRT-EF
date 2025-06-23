@@ -82,14 +82,18 @@
         <div class="dev-roadmap-details">
           <h4>Roadmap</h4>
           <ol>
-            <li v-for="station in roadmap" :key="station.name + station.line">
-              {{ station.name }} — Ligne {{ station.line }}
+            <li v-for="station in roadmap" :key="station.name + station.line" style="display: flex; align-items: center;">
               <span
-                v-if="station.correspondance"
-                class="correspondance-label"
-              >
-                (Correspondance : {{ station.fromLine }} → {{ station.toLine }})
-              </span>
+                :style="{
+                  display: 'inline-block',
+                  width: '16px',
+                  height: '16px',
+                  borderRadius: '50%',
+                  backgroundColor: lineColors[station.line] || '#888',
+                  marginRight: '8px'
+                }"
+              ></span>
+              {{ station.name }} — Ligne {{ station.line }}
             </li>
           </ol>
         </div>
@@ -123,9 +127,10 @@
           :weight="2"
         />
         <l-polyline
-          v-if="routeCoords.length"
-          :lat-lngs="routeCoords"
-          color="#FFD600"
+          v-for="(segment, idx) in coloredRouteSegments"
+          :key="'route-segment-' + idx"
+          :lat-lngs="segment.latlngs"
+          :color="segment.color"
           :weight="6"
         />
         <l-marker
@@ -172,7 +177,25 @@ export default {
       simpleCrs: L.CRS.Simple,
       mapWidth: 1000,   // Set to your network's pixel width
       mapHeight: 800,   // Set to your network's pixel height
-      backgroundImage: null // Optionally, set a background image for your map
+      backgroundImage: null, // Optionally, set a background image for your map
+      lineColors: {
+        "1": "#FFD600",    // Jaune
+        "2": "#0055C8",    // Bleu
+        "3": "#837902",    // Olive
+        "3bis": "#6EC4E8", // Bleu clair
+        "4": "#CF009E",    // Magenta
+        "5": "#FF7E2E",    // Orange
+        "6": "#6EC4E8",    // Turquoise
+        "7": "#F5A2BD",    // Rose pâle
+        "7bis": "#76D1EA", // Bleu turquoise
+        "8": "#E19BDF",    // Violet clair
+        "9": "#B6BD00",    // Vert olive
+        "10": "#C9910D",   // Moutarde
+        "11": "#704B1C",   // Marron
+        "12": "#007852",   // Vert foncé
+        "13": "#6EC4E8",   // Bleu clair
+        "14": "#62259D"    // Violet foncé
+      }
     };
   },
   async mounted() {
@@ -223,7 +246,27 @@ export default {
         minutes.toString().padStart(2, '0'),
         seconds.toString().padStart(2, '0')
       ].join(':');
-    }
+    },
+    coloredRouteSegments() {
+      if (!this.roadmap.length) return [];
+      const segments = [];
+      for (let i = 1; i < this.roadmap.length; i++) {
+        const prev = this.roadmap[i - 1];
+        const curr = this.roadmap[i];
+        const prevPos = this.pospointsMap[prev.name];
+        const currPos = this.pospointsMap[curr.name];
+        if (prevPos && currPos) {
+          segments.push({
+            latlngs: [
+              [prevPos.y, prevPos.x],
+              [currPos.y, currPos.x]
+            ],
+            color: this.lineColors[curr.line] || "#FFD600"
+          });
+        }
+      }
+      return segments;
+    },
   },
   methods: {
     async fetchJourney() {
