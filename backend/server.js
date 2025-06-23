@@ -94,6 +94,7 @@ function loadMetroData() {
   return { stations, links, graph };
 }
 
+
 const { stations, links, graph } = loadMetroData();
 
 app.get('/api/stations', (req, res) => {
