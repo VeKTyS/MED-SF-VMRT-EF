@@ -16,6 +16,12 @@ const PORT = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.json());
 
+function timeToSeconds(t) {
+  if (!t) return 0;
+  const [h, m, s] = t.split(':').map(Number);
+  return h * 3600 + m * 60 + s;
+}
+
 // Charger et parser pospoints.txt
 async function loadPosPointsFromDB() {
   return new Promise((resolve, reject) => {
@@ -84,7 +90,7 @@ async function loadMetroDataFromDB() {
         lineNumbers
       };
     }).filter(station => station.lineNumbers.length > 0);
-    
+
     // --- BUILD LINKS (same as before) ---
     links = [];
     const tripsById = {};
@@ -99,8 +105,9 @@ async function loadMetroDataFromDB() {
           from: stopsSeq[i].stop_id,
           to: stopsSeq[i + 1].stop_id,
           trip_id: stopsSeq[i].trip_id,
-          arrival: stopsSeq[i + 1].arrival_time,
           departure: stopsSeq[i].departure_time,
+          arrival: stopsSeq[i + 1].arrival_time,
+          traveling_time_in_sec: timeToSeconds(stopsSeq[i + 1].arrival_time) - timeToSeconds(stopsSeq[i].departure_time),
           sequence: stopsSeq[i + 1].stop_sequence
         });
       }
@@ -129,7 +136,16 @@ app.get('/api/stations', (req, res) => {
 });
 
 app.get('/api/links', (req, res) => {
-  res.json(links);
+  const page = parseInt(req.query.page) || 2;
+  const pageSize = parseInt(req.query.pageSize) || 1000;
+  const start = (page - 1) * pageSize;
+  const end = start + pageSize;
+  res.json({
+    total: links.length,
+    page,
+    pageSize,
+    links: links.slice(start, end)
+  });
 });
 
 app.get('/api/pospointsmap', async (req, res) => {
