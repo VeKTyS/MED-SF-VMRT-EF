@@ -1,34 +1,49 @@
-function createGraph(stations, links) {
+function createGraph(stations, stop_times) {
   const graph = {};
 
-  // Initialize graph nodes
+  // Initialize graph nodes with station info
   stations.forEach(station => {
-    graph[station.id.trim()] = {
-      name: station.name, // Use the station's name
-      neighbors: [] // List of connected stations with weights
+    graph[station.stop_id] = {
+      name: station.stop_name,
+      neighbors: []
     };
   });
 
-  // Add edges to the graph
-  links.forEach(link => {
-    const from = link.from.trim();
-    const to = link.to.trim();
-    const time = link.time;
+  // Group stop_times by trip_id
+  const tripsById = {};
+  stop_times.forEach(st => {
+    if (!tripsById[st.trip_id]) tripsById[st.trip_id] = [];
+    tripsById[st.trip_id].push(st);
+  });
 
-    // Ensure both stations exist in the graph
-    if (graph[from] && graph[to]) {
-      // Add the connection from "from" to "to"
-      graph[from].neighbors.push({ id: to, name: graph[to].name, weight: time });
+  // For each trip, connect consecutive stops
+  Object.values(tripsById).forEach(stopsSeq => {
+    stopsSeq.sort((a, b) => a.stop_sequence - b.stop_sequence);
+    for (let i = 0; i < stopsSeq.length - 1; i++) {
+      const from = stopsSeq[i].stop_id;
+      const to = stopsSeq[i + 1].stop_id;
 
-      // Add the connection from "to" to "from" (assuming undirected graph)
-      graph[to].neighbors.push({ id: from, name: graph[from].name, weight: time });
-    } else {
-      console.warn(`Link references missing station(s): from=${from}, to=${to}`);
+      // Optionally, compute weight (e.g., 1 or time difference)
+      let weight = 1;
+      // If you want to use time difference as weight:
+      // const timeA = stopsSeq[i].departure_time || stopsSeq[i].arrival_time;
+      // const timeB = stopsSeq[i + 1].arrival_time;
+      // weight = computeTimeDifference(timeA, timeB);
+
+      // Add edge from -> to
+      if (graph[from] && !graph[from].neighbors.some(n => n.id === to)) {
+        graph[from].neighbors.push({ id: to, name: graph[to]?.name, weight });
+      }
+      // Add edge to -> from (undirected)
+      if (graph[to] && !graph[to].neighbors.some(n => n.id === from)) {
+        graph[to].neighbors.push({ id: from, name: graph[from]?.name, weight });
+      }
     }
   });
 
   return graph;
 }
+
 
 function Djikstra(graph, startId) {
   const distances = {};

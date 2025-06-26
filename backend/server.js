@@ -31,71 +31,98 @@ async function loadPosPointsFromDB() {
   });
 }
 
-// Charger et parser metro.txt
-function loadMetroData() {
-  const filePath = path.join(__dirname, 'V1', 'metro.txt');
-  const data = fs.readFileSync(filePath, 'utf-8');
+async function loadMetroDataFromDB() {
+  const query = (sql) =>
+    new Promise((resolve, reject) => {
+      conn.query(sql, (err, results) => {
+        if (err) reject(err);
+        else resolve(results);
+      });
+    });
 
-  const stations = [];
-  const links = [];
-  const stationIds = new Set();
+  try {
+    console.log('🔄 Chargement des données GTFS...');
 
-  data.split('\n').forEach(line => {
-    line = line.trim();
-    if (!line) return;
+    const [stopsResults, tripsResults, stopTimesResults, routesResults] = await Promise.all([
+      query('SELECT stop_id, stop_name, stop_lat, stop_lon FROM stops'),
+      query('SELECT trip_id, route_id FROM trips'),
+      query('SELECT trip_id, arrival_time, departure_time, stop_id, stop_sequence FROM stop_times'),
+      query('SELECT route_id, route_short_name, route_long_name, route_type FROM routes')
+    ]);
 
-    // Parse stations (V)
-    if (line.startsWith('V')) {
-      try {
-        const content = line.slice(1).trim(); // remove leading 'V'
-        const [idName, lineNumber, isTerminusStr, branchingStr] = content.split(';').map(e => e.trim());
-        const [id, ...nameParts] = idName.split(/\s+/);
-        const name = nameParts.join(' ');
+    // --- OPTIMIZED INDEXES ---
+    // stop_id -> Set of trip_ids
+    const stopToTrips = {};
+    stopTimesResults.forEach(st => {
+      if (!stopToTrips[st.stop_id]) stopToTrips[st.stop_id] = new Set();
+      stopToTrips[st.stop_id].add(st.trip_id);
+    });
 
-        const station = {
-          id: id,
-          name: name,
-          lineNumber: lineNumber,
-          isTerminus: isTerminusStr.toLowerCase() === 'true',
-          branching: parseInt(branchingStr, 10)
-        };
+    // trip_id -> route_id
+    const tripToRoute = {};
+    tripsResults.forEach(trip => {
+      tripToRoute[trip.trip_id] = trip.route_id;
+    });
 
-        stations.push(station);
-        stationIds.add(id);
-      } catch (err) {
-        console.warn(`Skipping malformed station line: ${line}`);
+    // route_id -> route_short_name
+    const routeIdToShortName = {};
+    routesResults.forEach(route => {
+      routeIdToShortName[route.route_id] = route.route_short_name;
+    });
+
+    // --- BUILD STATIONS FAST ---
+    stations = stopsResults.map(stop => {
+      const tripIds = stopToTrips[stop.stop_id] ? Array.from(stopToTrips[stop.stop_id]) : [];
+      const routeIds = [...new Set(tripIds.map(tripId => tripToRoute[tripId]).filter(Boolean))];
+      const lineNumbers = [...new Set(routeIds.map(routeId => routeIdToShortName[routeId]).filter(Boolean))];
+
+      return {
+        id: stop.stop_id,
+        name: stop.stop_name,
+        lat: parseFloat(stop.stop_lat),
+        lon: parseFloat(stop.stop_lon),
+        lineNumbers
+      };
+    }).filter(station => station.lineNumbers.length > 0);
+    
+    // --- BUILD LINKS (same as before) ---
+    links = [];
+    const tripsById = {};
+    stopTimesResults.forEach(st => {
+      if (!tripsById[st.trip_id]) tripsById[st.trip_id] = [];
+      tripsById[st.trip_id].push(st);
+    });
+    Object.values(tripsById).forEach(stopsSeq => {
+      stopsSeq.sort((a, b) => a.stop_sequence - b.stop_sequence);
+      for (let i = 0; i < stopsSeq.length - 1; i++) {
+        links.push({
+          from: stopsSeq[i].stop_id,
+          to: stopsSeq[i + 1].stop_id,
+          trip_id: stopsSeq[i].trip_id,
+          arrival: stopsSeq[i + 1].arrival_time,
+          departure: stopsSeq[i].departure_time,
+          sequence: stopsSeq[i + 1].stop_sequence
+        });
       }
-    }
+    });
 
-    // Parse links (E)
-    else if (line.startsWith('E')) {
-      const parts = line.split(/\s+/);
-      if (parts.length >= 4) {
-        let from = parts[1].trim();
-        let to = parts[2].trim();
-        const time = parseInt(parts[3].trim(), 10);
+    // --- BUILD GRAPH ---
+    graph = createGraph(stopsResults, stopTimesResults);
 
-        // Zero-pad the IDs to match the format in stationIds
-        from = from.padStart(4, '0');
-        to = to.padStart(4, '0');
+    console.log('✅ Données chargées.');
+    return { stopsResults, tripsResults, stopTimesResults, routesResults, stations, links, graph };
 
-        if (!stationIds.has(from) || !stationIds.has(to)) {
-          console.warn(`Link references missing station(s): from=${from}, to=${to}`);
-        } else {
-          links.push({ from, to, time });
-        }
-      } else {
-        console.warn(`Skipping malformed link line: ${line}`);
-      }
-    }
-  });
-
-  const graph = createGraph(stations, links);
-  return { stations, links, graph };
+  } catch (err) {
+    console.error('❌ Erreur lors du chargement des données :', err);
+    throw err;
+  }
 }
 
+let stations = [];
+let links = [];
+let graph = {};
 
-const { stations, links, graph } = loadMetroData();
+loadMetroDataFromDB();
 
 app.get('/api/stations', (req, res) => {
   res.json(stations);
@@ -242,6 +269,27 @@ app.get('/api/connexite', (req, res) => {
   console.log('Visited:', visited.size, 'Total:', stationIds.length);
   res.json({ connexe });
 });
+
+
+app.get('/api/metrodata', async (req, res) => {
+  try {
+    const { stops, trips, stop_times, routes, graph  } = await loadMetroDataFromDB();
+    res.json({ stops, trips, stop_times, routes, graph  });
+  } catch (err) {
+    res.status(500).json({ error: 'Database error', details: err });
+  }
+});
+
+app.get('/api/metro/graph', async (req, res) => {
+  try {
+    const graph = await getMetroGraph();
+    res.json(graph);
+  } catch (err) {
+    console.error('❌ Erreur API /api/metro/graph :', err);
+    res.status(500).json({ error: 'Erreur serveur lors de la génération du graphe.' });
+  }
+});
+
 
 app.listen(PORT, () => {
   console.log(`✅ Server running on port ${PORT}`);
