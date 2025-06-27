@@ -250,15 +250,8 @@ app.get('/api/journey', (req, res) => {
     return res.status(404).json({ error: 'Station not found' });
   }
 
-  // Debug: Log station IDs
-  console.log('From Station:', fromStation);
-  console.log('To Station:', toStation);
-
   // Run Dijkstra's algorithm to calculate the shortest path
   const result = Djikstra(graph, fromStation.id);
-
-  // Debug: Log Dijkstra result
-  console.log('Dijkstra Result:', result);
 
   // Extract the full path to the destination station
   const path = [];
@@ -270,8 +263,8 @@ app.get('/api/journey', (req, res) => {
     path.unshift({
       id: station.id,
       name: station.name,
-      line: station.lineNumber,
-      distance: result.distances[currentStationId] || Infinity
+      lineNumbers: station.lineNumbers,
+      distance: result.distances[currentStationId]
     });
     currentStationId = result.previous[currentStationId];
   }
@@ -284,7 +277,7 @@ app.get('/api/journey', (req, res) => {
     from: fromStation,
     to: toStation,
     path,
-    totalDistance: result.distances[toStation.id] || Infinity
+    totalDistance: result.distances[toStation.id]
   });
 });
 
