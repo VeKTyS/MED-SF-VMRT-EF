@@ -123,6 +123,14 @@
         </l-marker>
       </l-map>
     </div>
+    <div class="bottom-buttons">
+      <button class="custom-btn" disabled> PMR </button>
+      <button class="custom-btn" disabled>Connexité</button>
+      <button class="custom-btn" disabled>Indicateur Efficience</button>
+      <button class="custom-btn" disabled>Indicateur Efficacité</button>
+      <button class="custom-btn" disabled>Indicateur Capacité</button>
+      <button class="custom-btn" disabled>Indicateur de qualité</button>
+    </div>
   </div>
 </template>
 
@@ -288,6 +296,17 @@ export default {
 </script>
 
 <style>
+h1 {
+  font-size: 2rem;
+  margin-bottom: 20px;
+  color: #FFD600;
+}
+p {
+  font-size: 1.2rem;
+  line-height: 1.5;
+  color: #e0e6ed;
+  margin-bottom: 20px;
+}
 body, .main-layout {
   font-family: 'Inter', Arial, sans-serif;
   background: linear-gradient(135deg, #232733 0%, #181c23 100%);
@@ -462,5 +481,41 @@ body, .main-layout {
   flex: 1;
   position: relative;
   z-index: 1;
+}
+
+.bottom-buttons {
+  position: absolute;
+  bottom: 0;
+  left: 15px;
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: 12px;
+  z-index: 20;
+  width: 410px; 
+}
+
+.custom-btn {
+  flex: 1 1 100px;
+  min-width: 110px;   
+  max-width: 130px;  
+  padding: 12px 0;
+  background: rgba(255, 214, 0, 0.5);;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  font-size: 1rem;
+  margin: 0;
+  cursor: pointer;
+  transition: background 0.2s;
+  text-align: center;
+}
+
+.custom-btn:disabled {
+  background: rgba(255, 214, 0, 0.3);
+  cursor: not-allowed;
+}
+.custom-btn:hover {
+  background: #1565c0;
 }
 </style>
