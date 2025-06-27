@@ -1,43 +1,29 @@
-function createGraph(stations, stop_times) {
+function createGraph(stations, links) {
   const graph = {};
 
   // Initialize graph nodes with station info
   stations.forEach(station => {
-    graph[station.stop_id] = {
-      name: station.stop_name,
+    graph[station.id || station.stop_id] = {
+      name: station.name || station.stop_name,
       neighbors: []
     };
   });
 
-  // Group stop_times by trip_id
-  const tripsById = {};
-  stop_times.forEach(st => {
-    if (!tripsById[st.trip_id]) tripsById[st.trip_id] = [];
-    tripsById[st.trip_id].push(st);
-  });
-
-  // For each trip, connect consecutive stops
-  Object.values(tripsById).forEach(stopsSeq => {
-    stopsSeq.sort((a, b) => a.stop_sequence - b.stop_sequence);
-    for (let i = 0; i < stopsSeq.length - 1; i++) {
-      const from = stopsSeq[i].stop_id;
-      const to = stopsSeq[i + 1].stop_id;
-
-      // Optionally, compute weight (e.g., 1 or time difference)
-      let weight = 1;
-      // If you want to use time difference as weight:
-      // const timeA = stopsSeq[i].departure_time || stopsSeq[i].arrival_time;
-      // const timeB = stopsSeq[i + 1].arrival_time;
-      // weight = computeTimeDifference(timeA, timeB);
-
-      // Add edge from -> to
-      if (graph[from] && !graph[from].neighbors.some(n => n.id === to)) {
-        graph[from].neighbors.push({ id: to, name: graph[to]?.name, weight });
-      }
-      // Add edge to -> from (undirected)
-      if (graph[to] && !graph[to].neighbors.some(n => n.id === from)) {
-        graph[to].neighbors.push({ id: from, name: graph[from]?.name, weight });
-      }
+  // Add all links (trips and pathways)
+  links.forEach(link => {
+    let weight = 1;
+    if (link.weight !== undefined && link.weight > 0) {
+      weight = link.weight;
+    } else if (link.traveling_time_in_sec !== undefined && link.traveling_time_in_sec > 0) {
+      weight = link.traveling_time_in_sec;
+    }
+    if (graph[link.from] && graph[link.to]) {
+      graph[link.from].neighbors.push({
+        id: link.to,
+        name: graph[link.to].name,
+        weight,
+        type: link.type || null
+      });
     }
   });
 
@@ -45,7 +31,7 @@ function createGraph(stations, stop_times) {
 }
 
 
-function Djikstra(graph, startId) {
+function Djikstra(graph, startId, endId = null) {
   const distances = {};
   const previous = {};
   const queue = new Set();
@@ -68,8 +54,10 @@ function Djikstra(graph, startId) {
     }
 
     if (distances[currentId] === Infinity) break;
-
     queue.delete(currentId);
+
+    // Early exit if we reached the destination
+    if (endId && currentId === endId) break;
 
     graph[currentId].neighbors.forEach(neighbor => {
       const alt = distances[currentId] + neighbor.weight;
@@ -80,8 +68,31 @@ function Djikstra(graph, startId) {
     });
   }
 
-  return { distances, previous };
+  // Helper to reconstruct the path with station names
+  function reconstructPathWithNames(toId) {
+    const path = [];
+    let current = toId;
+    while (current) {
+      path.unshift({
+        id: current,
+        name: graph[current]?.name || null,
+        distance : distances[current]
+      });
+      current = previous[current];
+    }
+    return path;
+  }
+
+  return endId
+    ? {
+        distances,
+        previous,
+        path: reconstructPathWithNames(endId),
+        totalDistance: distances[endId]
+      }
+    : { distances, previous };
 }
+
 
 function kruskal_acpm(graph) {
   const edges = [];

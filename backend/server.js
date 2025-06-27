@@ -49,11 +49,12 @@ async function loadMetroDataFromDB() {
   try {
     console.log('🔄 Chargement des données GTFS...');
 
-    const [stopsResults, tripsResults, stopTimesResults, routesResults] = await Promise.all([
+    const [stopsResults, tripsResults, stopTimesResults, routesResults, pathwaysResults] = await Promise.all([
       query('SELECT stop_id, stop_name, stop_lat, stop_lon FROM stops'),
       query('SELECT trip_id, route_id FROM trips'),
       query('SELECT trip_id, arrival_time, departure_time, stop_id, stop_sequence FROM stop_times'),
-      query('SELECT route_id, route_short_name, route_long_name, route_type FROM routes')
+      query('SELECT route_id, route_short_name, route_long_name, route_type FROM routes'),
+      query('SELECT pathway_id, from_stop_id, to_stop_id, pathway_mode, is_bidirectional, length, traversal_time FROM pathways')
     ]);
 
     // --- OPTIMIZED INDEXES ---
@@ -89,9 +90,9 @@ async function loadMetroDataFromDB() {
         lon: parseFloat(stop.stop_lon),
         lineNumbers
       };
-    }).filter(station => station.lineNumbers.length > 0);
+    });
 
-    // --- BUILD LINKS (same as before) ---
+    // --- BUILD LINKS (trips + pathways) ---
     links = [];
     const tripsById = {};
     stopTimesResults.forEach(st => {
@@ -108,13 +109,52 @@ async function loadMetroDataFromDB() {
           departure: stopsSeq[i].departure_time,
           arrival: stopsSeq[i + 1].arrival_time,
           traveling_time_in_sec: timeToSeconds(stopsSeq[i + 1].arrival_time) - timeToSeconds(stopsSeq[i].departure_time),
-          sequence: stopsSeq[i + 1].stop_sequence
+          sequence: stopsSeq[i + 1].stop_sequence,
+          type: 'trip'
+        });
+      }
+    });
+
+    // --- ADD PATHWAYS AS LINKS ---
+    pathwaysResults.forEach(pathway => {
+      // Use traversal_time as weight if available, else fallback to length or 1
+      let weight = 1;
+      if (pathway.traversal_time && parseInt(pathway.traversal_time, 10) > 0) {
+        weight = parseInt(pathway.traversal_time, 10);
+      } else if (pathway.length && parseFloat(pathway.length) > 0) {
+        weight = parseFloat(pathway.length);
+      }
+
+      links.push({
+        from: pathway.from_stop_id,
+        to: pathway.to_stop_id,
+        pathway_id: pathway.pathway_id,
+        pathway_mode: pathway.pathway_mode,
+        is_bidirectional: pathway.is_bidirectional === '1' || pathway.is_bidirectional === 1,
+        length: pathway.length ? parseFloat(pathway.length) : null,
+        traversal_time: pathway.traversal_time ? parseInt(pathway.traversal_time, 10) : null,
+        weight,
+        type: 'pathway'
+      });
+
+      // If bidirectional, add the reverse link
+      if (pathway.is_bidirectional === '1' || pathway.is_bidirectional === 1) {
+        links.push({
+          from: pathway.to_stop_id,
+          to: pathway.from_stop_id,
+          pathway_id: pathway.pathway_id,
+          pathway_mode: pathway.pathway_mode,
+          is_bidirectional: true,
+          length: pathway.length ? parseFloat(pathway.length) : null,
+          traversal_time: pathway.traversal_time ? parseInt(pathway.traversal_time, 10) : null,
+          weight,
+          type: 'pathway'
         });
       }
     });
 
     // --- BUILD GRAPH ---
-    graph = createGraph(stopsResults, stopTimesResults);
+    graph = createGraph(stations, links);
 
     console.log('✅ Données chargées.');
     return { stopsResults, tripsResults, stopTimesResults, routesResults, stations, links, graph };
@@ -173,12 +213,25 @@ app.get('/api/graph', (req, res) => {
 });
 
 app.get('/api/djikstra', (req, res) => {
-  const { startId } = req.query;
+  const { startId, endId } = req.query;
   if (!startId || !graph[startId]) {
     return res.status(400).json({ error: 'Invalid start station ID' });
   }
+  if (endId && !graph[endId]) {
+    return res.status(400).json({ error: 'Invalid end station ID' });
+  }
 
-  const result = Djikstra(graph, startId);
+  const result = Djikstra(graph, startId, endId);
+
+  // If endId is provided, return only the path and totalDistance
+  if (endId) {
+    return res.json({
+      path: result.path,
+      totalDistance: result.totalDistance
+    });
+  }
+
+  // Otherwise, return all distances and previous
   res.json(result);
 });
 
