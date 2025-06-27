@@ -5,7 +5,7 @@
         <div class="mode-switch">
           <label>
             <input type="radio" v-model="mode" value="route" />
-            Itinéraire
+            Itinéraire (Station à Station)
           </label>
           <label>
             <input type="radio" v-model="mode" value="mst" />
@@ -65,7 +65,7 @@
         </div>
         <div v-if="mode === 'mst'" class="mst-controls">
           <button class="dev-search-btn" @click="drawKruskal">Afficher Kruskal</button>
-          <button class="dev-search-btn" @click="drawPrim">Afficher Prim</button>
+          <button class="dev-search-btn" disabled @click="drawPrim">Afficher Prim</button>
         </div>
       </div>
       <div v-if="(mode === 'route' && roadmap.length) || (mode === 'mst' && roadmap.length)" class="roadmap-card">
@@ -286,3 +286,181 @@ export default {
   }
 };
 </script>
+
+<style>
+body, .main-layout {
+  font-family: 'Inter', Arial, sans-serif;
+  background: linear-gradient(135deg, #232733 0%, #181c23 100%);
+  color: #e0e6ed;
+}
+
+.main-layout {
+  display: flex;
+  flex-direction: row;
+  height: 100vh;
+}
+
+.center-panel {
+  flex: 0 0 400px;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  z-index: 10;
+}
+
+.form-card {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  padding: 20px;
+  margin-bottom: 20px;
+  width:auto;
+  backdrop-filter: blur(10px);
+}
+
+.mode-switch {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 20px;
+  font-size: large;
+}
+
+.mode-switch label {
+  cursor: pointer;
+  padding: 10px 20px;
+  border-radius: 20px;
+  transition: background 0.3s;
+}
+
+.mode-switch input {
+  display: none;
+}
+
+.mode-switch label:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.mode-switch input:checked + label {
+  background: #FFD600;
+  color: #181c23;
+}
+
+.route-controls, .mst-controls {
+  margin-top: 20px;
+  font-size: large;
+}
+
+.autocomplete-group {
+  margin-bottom: 15px;
+}
+
+.autocomplete-group label {
+  display: block;
+  margin-bottom: 5px;
+}
+
+.autocomplete-group input {
+  width: 100%;
+  padding: 10px;
+  border: 1px solid #444;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.1);
+  color: #e0e6ed;
+  transition: border 0.3s;
+}
+
+.autocomplete-group input:focus {
+  border-color: #FFD600;
+  outline: none;
+}
+
+.suggestions {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+  border: 1px solid #444;
+  max-height: 200px;
+  overflow-y: auto;
+  z-index: 100;
+  position: absolute;
+  width: calc(100% - 22px);
+}
+
+.suggestions li {
+  padding: 10px;
+  cursor: pointer;
+  transition: background 0.3s;
+}
+
+.suggestions li:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.dev-search-btn {
+  width: 100%;
+  padding: 12px;
+  background: #1e90ff;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-size: 1.1rem;
+  margin-top: 10px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.dev-search-btn:hover {
+  background: #1565c0;
+}
+
+.dev-search-btn:disabled {
+  background: rgba(255, 214, 0, 0.5);
+  cursor: not-allowed;
+}
+
+.roadmap-card {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  padding: 20px;
+  margin-top: 20px;
+  backdrop-filter: blur(10px);
+}
+
+.dev-time {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 15px;
+}
+
+.dev-time h2 {
+  margin: 0;
+  font-size: 24px;
+  color: #FFD600;
+}
+
+.dev-roadmap-details {
+  margin-top: 10px;
+}
+
+.dev-roadmap-details h4 {
+  margin: 0 0 10px 0;
+  font-size: 18px;
+  color: #FFD600;
+}
+
+.dev-roadmap-details ol {
+  padding-left: 20px;
+}
+
+.dev-roadmap-details li {
+  margin-bottom: 5px;
+}
+
+.map-panel {
+  flex: 1;
+  position: relative;
+  z-index: 1;
+}
+</style>
