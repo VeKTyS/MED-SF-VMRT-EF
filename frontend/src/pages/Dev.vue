@@ -1,4 +1,3 @@
-<!-- filepath: c:\Users\PC\Desktop\MED-SF-VMRT-EF\frontend\src\pages\Dev.vue -->
 <template>
   <div class="main-layout">
     <div class="center-panel">
@@ -79,18 +78,18 @@
         <div class="dev-roadmap-details">
           <h4>Roadmap</h4>
           <ol>
-            <li v-for="station in roadmap" :key="station.name + station.line" style="display: flex; align-items: center;">
+            <li v-for="station in roadmap" :key="station.id" style="display: flex; align-items: center;">
               <span
                 :style="{
                   display: 'inline-block',
                   width: '16px',
                   height: '16px',
                   borderRadius: '50%',
-                  backgroundColor: lineColors[station.line] || '#888',
+                  backgroundColor: getStationColor(station, roadmap) || '#888',
                   marginRight: '8px'
                 }"
               ></span>
-              {{ station.name }} — Ligne {{ station.line }}
+              {{ station.name }} <span v-if="station.cumulativeDistance !== undefined">— {{ formatDistance(station.cumulativeDistance) }}</span>
             </li>
           </ol>
         </div>
@@ -99,23 +98,15 @@
     <div class="map-panel">
       <l-map
         style="height: 100vh; width: 100%; min-width: 600px"
-        :zoom="0"
-        :center="[mapHeight / 2, mapWidth / 2]"
-        :crs="simpleCrs"
-        :maxBounds="[[0,0],[mapHeight,mapWidth]]"
-        :minZoom="-2"
-        :maxZoom="4"
-        :zoomControl="false"
+        :zoom="12"
+        :center="[mapCenterLat, mapCenterLon]"
+        :zoomControl="true"
         :scrollWheelZoom="true"
       >
-        <!-- Optionally, add a background image for your map here -->
-        <!--
-        <l-image-overlay
-          v-if="backgroundImage"
-          :url="backgroundImage"
-          :bounds="[[0,0],[mapHeight,mapWidth]]"
+        <l-tile-layer
+          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+          attribution="&copy; OpenStreetMap contributors"
         />
-        -->
         <l-polyline
           v-for="(edge, idx) in subwayEdges"
           :key="idx"
@@ -131,9 +122,9 @@
           :weight="6"
         />
         <l-marker
-          v-for="station in pospoints"
-          :key="station.name"
-          :lat-lng="[station.y, station.x]"
+          v-for="station in roadmap"
+          :key="station.id"
+          :lat-lng="[pospointsMap[station.name]?.lat, pospointsMap[station.name]?.lon]"
         >
           <l-popup>{{ station.name }}</l-popup>
         </l-marker>
@@ -143,13 +134,12 @@
 </template>
 
 <script>
-import { LMap, LTileLayer, LMarker, LPopup, LPolyline, LImageOverlay } from "@vue-leaflet/vue-leaflet";
+import { LMap, LTileLayer, LMarker, LPopup, LPolyline } from "@vue-leaflet/vue-leaflet";
 import "leaflet/dist/leaflet.css";
-import L from "leaflet";
 
 export default {
   name: "Dev",
-  components: { LMap, LTileLayer, LMarker, LPopup, LPolyline, LImageOverlay },
+  components: { LMap, LTileLayer, LMarker, LPopup, LPolyline },
   data() {
     return {
       apiBase: "http://localhost:3000/api",
@@ -170,56 +160,52 @@ export default {
       filteredEndSuggestions: [],
       showStartSuggestions: false,
       showEndSuggestions: false,
-      // Simple CRS settings
-      simpleCrs: L.CRS.Simple,
-      mapWidth: 1000,   // Set to your network's pixel width
-      mapHeight: 800,   // Set to your network's pixel height
-      backgroundImage: null, // Optionally, set a background image for your map
+      // Map center for Paris (adjust as needed)
+      mapCenterLat: 48.8566,
+      mapCenterLon: 2.3522,
       lineColors: {
-        "1": "#FFD600",    // Jaune
-        "2": "#0055C8",    // Bleu
-        "3": "#837902",    // Olive
-        "3bis": "#6EC4E8", // Bleu clair
-        "4": "#CF009E",    // Magenta
-        "5": "#FF7E2E",    // Orange
-        "6": "#6EC4E8",    // Turquoise
-        "7": "#F5A2BD",    // Rose pâle
-        "7bis": "#76D1EA", // Bleu turquoise
-        "8": "#E19BDF",    // Violet clair
-        "9": "#B6BD00",    // Vert olive
-        "10": "#C9910D",   // Moutarde
-        "11": "#704B1C",   // Marron
-        "12": "#007852",   // Vert foncé
-        "13": "#6EC4E8",   // Bleu clair
-        "14": "#62259D"    // Violet foncé
-      }
+        "1": "#FFD600", "2": "#0055C8", "3": "#837902", "3bis": "#6EC4E8",
+        "4": "#CF009E", "5": "#FF7E2E", "6": "#6EC4E8", "7": "#F5A2BD",
+        "7bis": "#76D1EA", "8": "#E19BDF", "9": "#B6BD00", "10": "#C9910D",
+        "11": "#704B1C", "12": "#007852", "13": "#6EC4E8", "14": "#62259D"
+      },
+      stationsMap: {} // for fast lookup of station info by name or id
     };
   },
   async mounted() {
-    // Fetch all station coordinates (should be in pixel coordinates: { name, x, y })
+    // Fetch all station coordinates
     this.pospoints = await fetch(`${this.apiBase}/pospoints`).then(r => r.json());
+    // Ensure pospoints have lat/lon keys
+    this.pospoints.forEach(p => {
+      if (p.lat === undefined && p.y !== undefined) p.lat = p.y;
+      if (p.lon === undefined && p.x !== undefined) p.lon = p.x;
+    });
     this.pospointsMap = {};
     this.pospoints.forEach(p => {
       this.pospointsMap[p.name] = p;
     });
     this.stationNames = this.pospoints.map(p => p.name);
 
+    // Fetch all stations for line info
+    const stationsArr = await fetch(`${this.apiBase}/stations`).then(r => r.json());
+    this.stationsMap = {};
+    stationsArr.forEach(st => {
+      this.stationsMap[st.id] = st;
+      this.stationsMap[st.name] = st; // for lookup by name
+    });
+
     // Fetch subway edges
-    const edges = await fetch(`${this.apiBase}/edges`).then(r => r.json());
-    // edges: [ [fromName, toName], ... ]
+    const edges = await fetch(`${this.apiBase}/edges`).then(r => r.json()).catch(() => []);
     this.subwayEdges = edges
       .map(([from, to]) => {
         const a = this.pospointsMap[from];
         const b = this.pospointsMap[to];
         return a && b ? [
-          [a.y, a.x],
-          [b.y, b.x]
+          [a.lat, a.lon],
+          [b.lat, b.lon]
         ] : null;
       })
       .filter(Boolean);
-
-    // Optionally, set a background image (must match mapWidth/mapHeight)
-    // this.backgroundImage = require('@/assets/your-background.png');
   },
   watch: {
     mode(newMode) {
@@ -252,15 +238,18 @@ export default {
         const curr = this.roadmap[i];
         const prevPos = this.pospointsMap[prev.name];
         const currPos = this.pospointsMap[curr.name];
-        if (prevPos && currPos) {
-          segments.push({
-            latlngs: [
-              [prevPos.y, prevPos.x],
-              [currPos.y, currPos.x]
-            ],
-            color: this.lineColors[curr.line] || "#FFD600"
-          });
+        let color = "#FFD600";
+        const prevStation = this.stationsMap[prev.id] || {};
+        if (prevStation.lineNumbers && prevStation.lineNumbers.length) {
+          color = this.lineColors[prevStation.lineNumbers[0]] || color;
         }
+        segments.push({
+          latlngs: [
+            [prevPos.lat, prevPos.lon],
+            [currPos.lat, currPos.lon]
+          ],
+          color
+        });
       }
       return segments;
     },
@@ -276,15 +265,17 @@ export default {
         this.totalDistance = 0;
         return;
       }
+      // The backend now returns path: [{id, name, distance}]
       this.roadmap = data.path.map(st => ({
+        id: st.id,
         name: st.name,
-        line: st.line
-      })); 
-      // Build the polyline for the route (in pixel coordinates)
+        cumulativeDistance: st.distance
+      }));
+      // Build the polyline for the route (in lat/lon)
       this.routeCoords = data.path
         .map(st => this.pospointsMap[st.name])
         .filter(Boolean)
-        .map(st => [st.y, st.x]);
+        .map(st => [st.lat, st.lon]);
       this.totalDistance = data.totalDistance || 0;
     },
     async drawKruskal() {
@@ -325,10 +316,23 @@ export default {
     },
     hideEndSuggestions() {
       setTimeout(() => { this.showEndSuggestions = false; }, 100);
+    },
+    getStationColor(station, roadmap) {
+      const st = this.stationsMap[station.id] || {};
+      if (st.lineNumbers && st.lineNumbers.length) {
+        return this.lineColors[st.lineNumbers[0]] || "#FFD600";
+      }
+      return "#FFD600";
+    },
+    formatDistance(distance) {
+      if (distance < 60) return `${distance}s`;
+      if (distance < 3600) return `${Math.floor(distance / 60)}min ${distance % 60}s`;
+      return `${Math.floor(distance / 3600)}h ${Math.floor((distance % 3600) / 60)}min`;
     }
   }
 };
 </script>
+
 
 <style scoped>
 .main-layout {
