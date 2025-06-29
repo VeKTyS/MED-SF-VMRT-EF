@@ -85,7 +85,7 @@ async function loadMetroDataFromDB() {
         const tripIds = stopToTrips[stop.stop_id] ? Array.from(stopToTrips[stop.stop_id]) : [];
         const routeIds = [...new Set(tripIds.map(tripId => tripToRoute[tripId]).filter(Boolean))];
         const lineNumbers = [...new Set(routeIds.map(routeId => routeIdToShortName[routeId]).filter(Boolean))];
-
+        
         stationMap.set(stop.stop_id, {
             id: stop.stop_id,
             name: stop.stop_name,

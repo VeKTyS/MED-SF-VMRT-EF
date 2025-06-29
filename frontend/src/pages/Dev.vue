@@ -1,5 +1,8 @@
 <template>
   <div class="main-layout">
+    <div v-if="isLoading" class="loading-indicator">
+      <div class="spinner"></div>
+    </div>
     <div class="center-panel">
       <div class="form-card">
         <div class="mode-switch">
@@ -61,14 +64,14 @@
           <button
             class="dev-search-btn"
             @click="fetchJourney"
-            :disabled="!startStation || !endStation || startStation === endStation"
+            :disabled="isLoading || !startStation || !endStation || startStation === endStation"
           >
             Rechercher
           </button>
         </div>
         <div v-if="mode === 'mst'" class="mst-controls">
-          <button class="dev-search-btn" @click="drawKruskal">Afficher Kruskal</button>
-          <button class="dev-search-btn" @click="drawPrim">Afficher Prim</button>
+          <button class="dev-search-btn" @click="drawKruskal" :disabled="isLoading">Afficher Kruskal</button>
+          <button class="dev-search-btn" @click="drawPrim" :disabled="isLoading">Afficher Prim</button>
         </div>
       </div>
       <div v-if="mode === 'mst' && mstInfo.totalWeight > 0" class="roadmap-card">
@@ -204,7 +207,8 @@
           "13": "#6EC4E8",   // Bleu clair
           "14": "#62259D"    // Violet foncé
         },
-        stationsMap: {} // for fast lookup of station info by name or id
+        stationsMap: {}, // for fast lookup of station info by name or id
+        isLoading: false // indicate loading state for journey or MST
       };
     },
     async mounted() {
@@ -222,30 +226,10 @@
       // Fetch all stations for line info
       const stationsArr = await fetch(`${this.apiBase}/stations`).then(r => r.json());
 
-      // Now you can safely assign stationList
-      const stationSuggestionsMap = new Map();
-      stationsArr.forEach(st => {
-        const cleanName = st.name.split(' (')[0].trim();
-        if (!stationSuggestionsMap.has(cleanName)) {
-          stationSuggestionsMap.set(cleanName, {
-            id: st.id, // Use the first ID encountered
-            name: cleanName,
-            lat: st.lat,
-            lon: st.lon,
-            lineNumbers: new Set(st.lineNumbers)
-          });
-        } else {
-          const existing = stationSuggestionsMap.get(cleanName);
-          st.lineNumbers.forEach(line => existing.lineNumbers.add(line));
-        }
-      });
+      // Restore original stationList without filtering
+      this.stationList = stationsArr;
 
-      this.stationList = Array.from(stationSuggestionsMap.values()).map(st => ({
-        ...st,
-        lineNumbers: Array.from(st.lineNumbers)
-      }));
-
-
+      // Create the stationsMap for lookups
       this.stationsMap = {};
       stationsArr.forEach(st => {
         this.stationsMap[st.id] = st;
@@ -317,6 +301,7 @@
     },
     methods: {  
      async fetchJourney() {
+        this.isLoading = true;
         console.log("Fetching journey from", this.startStation, "to", this.endStation);
         if (!this.startStation || !this.endStation || this.startStation.id === this.endStation.id) return;
 
@@ -337,33 +322,29 @@
             this.roadmap = [];
             this.routeCoords = [];
             this.totalDistance = 0;
+            this.isLoading = false;
             alert("No valid path found between the selected stations.");
             return;
           }
 
-          this.roadmap = data.path.map(st => ({
-            id: st.id,
-            name: st.name,
-            cumulativeDistance: st.distance
-          }));
-
-          this.routeCoords = data.path
-            .map(st => this.pospointsMap[st.id])
-            .filter(Boolean)
-            .map(st => [st.lat, st.lon]);
-
+          this.roadmap = data.path.map(st => ({ id: st.id, name: st.name, cumulativeDistance: st.distance }));
+          this.routeCoords = data.path.map(st => this.pospointsMap[st.id]).filter(Boolean).map(st => [st.lat, st.lon]);
           this.totalDistance = data.totalDistance || 0;
+          this.isLoading = false;
         } catch (error) {
           console.error("Failed to fetch journey:", error);
           this.roadmap = [];
           this.routeCoords = [];
           this.totalDistance = 0;
+          this.isLoading = false;
           alert(`Error finding journey: ${error.message}`);
         }
       },
 
 
       async drawKruskal() {
+        this.isLoading = true;
+        console.log("Drawing Kruskal's algorithm MST");
         this.mstInfo = { totalWeight: 0, algorithm: 'Kruskal' };
         this.mstEdges = [];
         this.mstRoadmap = [];
@@ -371,8 +352,7 @@
         const data = await res.json();
 
         if (!data.edges || !Array.isArray(data.edges)) {
-          this.roadmap = [];
-          this.routeCoords = [];
+          this.isLoading = false;
           return;
         }
 
@@ -384,8 +364,11 @@
           const to = this.pospointsMap[edge.toId];
           return from && to ? [[from.lat, from.lon], [to.lat, to.lon]] : null;
         }).filter(Boolean);
+        this.isLoading = false;
       },
       async drawPrim() {
+        this.isLoading = true;
+        console.log("Drawing Prim's algorithm MST");
         this.mstInfo = { totalWeight: 0, algorithm: 'Prim' };
         this.mstEdges = [];
         this.mstRoadmap = [];
@@ -393,8 +376,7 @@
         const data = await res.json();
 
         if (!data.edges || !Array.isArray(data.edges)) {
-          this.roadmap = [];
-          this.routeCoords = [];
+          this.isLoading = false;
           return;
         }
 
@@ -406,6 +388,7 @@
           const to = this.pospointsMap[edge.toId];
           return from && to ? [[from.lat, from.lon], [to.lat, to.lon]] : null;
         }).filter(Boolean);
+        this.isLoading = false;
       },
       forbiddenWords() {
         return ["rue", "entrée", "Entrée", "r.", "avenue", "boulevard", "place", "impasse", "allée", "chemin", "quai", "square", "voie"];
@@ -413,37 +396,35 @@
       filterStartSuggestions() {
         const input = this.startInput.trim().toLowerCase();
         const forbidden = this.forbiddenWords();
-        this.filteredStartSuggestions = input
-          ? this.stationList
-              .filter(st =>
-                st.id &&
-                st.name.toLowerCase().startsWith(input) &&
-                !forbidden.some(word => st.name.toLowerCase().includes(word)) &&
-                (!this.endStation || st.id !== this.endStation.id)
-              )
-              .map(st => ({
-                ...st,
-                label: `${st.name} (Lignes ${st.lineNumbers.join(", ")})`
-              }))
-          : [];
+        if (!input) {
+          this.filteredStartSuggestions = [];
+          this.showStartSuggestions = false;
+          return;
+        }
+        const suggestions = this.stationList.filter(st =>
+          st.id &&
+          st.name.toLowerCase().includes(input) &&
+          !forbidden.some(word => st.name.toLowerCase().includes(word)) &&
+          (!this.endStation || st.id !== this.endStation.id)
+        );
+        this.filteredStartSuggestions = suggestions.map(st => ({ ...st, label: st.name }));
         this.showStartSuggestions = this.filteredStartSuggestions.length > 0;
       },
 
       filterEndSuggestions() {
         const input = this.endInput.trim().toLowerCase();
         const forbidden = this.forbiddenWords();
-        this.filteredEndSuggestions = input
-          ? this.stationList
-              .filter(st =>
-                st.name.toLowerCase().startsWith(input) &&
-                !forbidden.some(word => st.name.toLowerCase().includes(word)) &&
-                (!this.startStation || st.id !== this.startStation.id)
-              )
-              .map(st => ({
-                ...st,
-                label: `${st.name} (Lignes ${st.lineNumbers.join(", ")})`
-              }))
-          : [];
+        if (!input) {
+          this.filteredEndSuggestions = [];
+          this.showEndSuggestions = false;
+          return;
+        }
+        const suggestions = this.stationList.filter(st =>
+          st.name.toLowerCase().includes(input) &&
+          !forbidden.some(word => st.name.toLowerCase().includes(word)) &&
+          (!this.startStation || st.id !== this.startStation.id)
+        );
+        this.filteredEndSuggestions = suggestions.map(st => ({ ...st, label: st.name }));
         this.showEndSuggestions = this.filteredEndSuggestions.length > 0;
       },
 
@@ -480,12 +461,42 @@
         return "#FFD600";
       },
       formatDistance(distance) {
-        if (distance < 60) return `${distance}s`;
-        if (distance < 3600) return `${Math.floor(distance / 60)}min ${distance % 60}s`;
-        return `${Math.floor(distance / 3600)}h ${Math.floor((distance % 3600) / 60)}min`;
-      }
+        if (distance === undefined || distance === null) return "";
+        const km = distance / 1000;
+        return km >= 1 ? `${km.toFixed(1)} km` : `${distance} m`;
+      },
     }
   };
 </script>
+
+
+<style scoped>
+.loading-indicator {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(255, 255, 255, 0.8);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 2000;
+}
+
+.spinner {
+  width: 40px;
+  height: 40px;
+  border: 4px solid rgba(0, 123, 255, 0.3);
+  border-top: 4px solid rgba(0, 123, 255, 1);
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+</style>
 
 
