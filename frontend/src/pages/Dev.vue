@@ -68,31 +68,35 @@
         </div>
         <div v-if="mode === 'mst'" class="mst-controls">
           <button class="dev-search-btn" @click="drawKruskal">Afficher Kruskal</button>
-          <button class="dev-search-btn" disabled title="À venir">Afficher Prim (bientôt)</button>
+          <button class="dev-search-btn" @click="drawPrim">Afficher Prim</button>
+        </div>
+      </div>
+      <div v-if="mode === 'mst' && mstInfo.totalWeight > 0" class="roadmap-card">
+        <div class="dev-time">
+          <h4>ACPM (Arbre Couvrant de Poids Minimum)</h4>
+          <p>
+            L'ACPM représente le réseau de transport le plus court connectant toutes les stations avec le coût total le plus bas (temps de trajet). C'est une manière de visualiser le réseau le plus efficace possible.
+          </p>
+          <span>Coût total du réseau</span>
+          <h2>{{ mstInfo.totalWeight }}</h2>
         </div>
       </div>
       <div v-if="(mode === 'route' && roadmap.length) || (mode === 'mst' && roadmap.length)" class="roadmap-card">
         <div class="dev-time">
-          <span>Temps estimé</span>
-          <h2>
+          <span v-if="mode === 'route'">Temps estimé</span>
+          <h2 v-if="mode === 'route'">
             {{ formattedTime }}
           </h2>
+          <h4 v-if="mode === 'mst'">Réseau optimisé</h4>
         </div>
         <div class="dev-roadmap-details">
-          <h4>Roadmap</h4>
+          <h4>{{ mode === 'route' ? 'Roadmap' : 'Connections' }}</h4>
           <ol>
-            <li v-for="station in roadmap" :key="station.id" style="display: flex; align-items: center;">
-              <span
-                :style="{
-                  display: 'inline-block',
-                  width: '16px',
-                  height: '16px',
-                  borderRadius: '50%',
-                  backgroundColor: getStationColor(station, roadmap) || '#888',
-                  marginRight: '8px'
-                }"
-              ></span>
-              {{ station.name }} <span v-if="station.cumulativeDistance !== undefined">— {{ formatDistance(station.cumulativeDistance) }}</span>
+            <li v-for="(item, idx) in roadmap" :key="idx">
+              <span v-if="mode === 'route'">{{ item.name }}</span>
+              <span v-if="mode === 'mst'">
+                {{ item.from }} ↔ {{ item.to }} ({{ item.weight }})
+              </span>
             </li>
           </ol>
         </div>
@@ -107,8 +111,8 @@
         :scrollWheelZoom="true"
       >
         <l-tile-layer
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-          attribution="&copy; OpenStreetMap contributors"
+          url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
+          attribution="&copy; <a href='https://www.openstreetmap.org/copyright'>OpenStreetMap</a> contributors &copy; <a href='https://carto.com/attributions'>CARTO</a>"
         />
         <l-polyline
           v-for="(edge, idx) in subwayEdges"
@@ -116,6 +120,13 @@
           :lat-lngs="edge"
           color="#444"
           :weight="2"
+        />
+        <l-polyline
+          v-for="(edge, idx) in mstEdges"
+          :key="'mst-edge-' + idx"
+          :lat-lngs="edge"
+          color="red"
+          :weight="4"
         />
         <l-polyline
           v-for="(segment, idx) in coloredRouteSegments"
@@ -155,10 +166,15 @@
         subwayEdges: [],
         roadmap: [],
         routeCoords: [],
+        mstEdges: [],
         mode: "route",
         startStation: null,
         endStation: null,
         totalDistance: 0,
+        mstInfo: {
+          totalWeight: 0,
+          algorithm: null
+        },
         // Autocomplete
         startInput: "",
         endInput: "",
@@ -228,9 +244,9 @@
       });
 
       // Fetch subway edges
-      const edges = await fetch(`${this.apiBase}/edges`).then(r => r.json()).catch(() => []);
-      this.subwayEdges = edges
-        .map(([from, to]) => {
+      const { links } = await fetch(`${this.apiBase}/links`).then(r => r.json()).catch(() => ({ links: [] }));
+      this.subwayEdges = links
+        .map(({ from, to }) => {
           const a = this.pospointsMap[from];
           const b = this.pospointsMap[to];
           return a && b ? [[a.lat, a.lon], [b.lat, b.lon]] : null;
@@ -241,10 +257,12 @@
       mode(newMode) {
         this.roadmap = [];
         this.routeCoords = [];
+        this.mstEdges = [];
         this.startInput = "";
         this.endInput = "";
         this.startStation = "";
         this.endStation = "";
+        this.mstInfo = { totalWeight: 0, algorithm: null };
       }
     },
     computed: {
@@ -321,38 +339,47 @@
 
 
       async drawKruskal() {
-      this.roadmap = [];
-      this.routeCoords = [];
-      const res = await fetch(`${this.apiBase}/kruskal`);
-      const data = await res.json();
+        this.mstInfo = { totalWeight: 0, algorithm: 'Kruskal' };
+        this.mstEdges = [];
+        const res = await fetch(`${this.apiBase}/kruskal`);
+        const data = await res.json();
 
-      if (!data.edges || !Array.isArray(data.edges)) {
-        // Gestion d'erreur : pas de données valides
-        this.roadmap = [];
-        this.routeCoords = [];
-        return;
-      }
+        if (!data.edges || !Array.isArray(data.edges)) {
+          this.roadmap = [];
+          this.routeCoords = [];
+          return;
+        }
 
-      // data.edges: [{from, to, fromName, toName, weight}]
-      const stationSet = new Set();
-      const roadmap = [];
-      data.edges.forEach(edge => {
-        if (!stationSet.has(edge.from)) {
-          roadmap.push({ id: edge.from, name: edge.fromName });
-          stationSet.add(edge.from);
+        this.roadmap = data.edges.map(e => ({ from: e.from, to: e.to, weight: e.weight }));
+        this.mstInfo.totalWeight = data.edges.reduce((sum, edge) => sum + edge.weight, 0);
+
+        this.mstEdges = data.edges.map(edge => {
+          const from = this.pospointsMap[edge.fromId];
+          const to = this.pospointsMap[edge.toId];
+          return from && to ? [[from.lat, from.lon], [to.lat, to.lon]] : null;
+        }).filter(Boolean);
+      },
+      async drawPrim() {
+        this.mstInfo = { totalWeight: 0, algorithm: 'Prim' };
+        this.mstEdges = [];
+        const res = await fetch(`${this.apiBase}/prim`);
+        const data = await res.json();
+
+        if (!data.edges || !Array.isArray(data.edges)) {
+          this.roadmap = [];
+          this.routeCoords = [];
+          return;
         }
-        if (!stationSet.has(edge.to)) {
-          roadmap.push({ id: edge.to, name: edge.toName });
-          stationSet.add(edge.to);
-        }
-      });
-      this.roadmap = roadmap;
-      this.routeCoords = data.edges.map(edge => {
-        const from = this.pospointsMap[edge.fromName];
-        const to = this.pospointsMap[edge.toName];
-        return from && to ? [[from.lat, from.lon], [to.lat, to.lon]] : null;
-      }).filter(Boolean);
-    },
+
+        this.roadmap = data.edges.map(e => ({ from: e.from, to: e.to, weight: e.weight }));
+        this.mstInfo.totalWeight = data.edges.reduce((sum, edge) => sum + edge.weight, 0);
+
+        this.mstEdges = data.edges.map(edge => {
+          const from = this.pospointsMap[edge.fromId];
+          const to = this.pospointsMap[edge.toId];
+          return from && to ? [[from.lat, from.lon], [to.lat, to.lon]] : null;
+        }).filter(Boolean);
+      },
       forbiddenWords() {
         return ["rue", "entrée", "Entrée", "r.", "avenue", "boulevard", "place", "impasse", "allée", "chemin", "quai", "square", "voie"];
       },

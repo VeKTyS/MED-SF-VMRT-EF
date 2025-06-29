@@ -298,9 +298,11 @@ app.get('/api/kruskal', (req, res) => {
   const mstEdges = mst.map(edge => ({
     from: getStationNameById(edge.from),
     to: getStationNameById(edge.to),
+    fromId: edge.from,
+    toId: edge.to,
     weight: edge.weight
   })).filter(e => e.from && e.to);
-  res.json(mstEdges);
+  res.json({ edges: mstEdges }); // <-- wrap in { edges: ... }
 });
 
 app.get('/api/prim', (req, res) => {
@@ -308,9 +310,11 @@ app.get('/api/prim', (req, res) => {
   const mstEdges = mst.map(edge => ({
     from: getStationNameById(edge.from),
     to: getStationNameById(edge.to),
+    fromId: edge.from,
+    toId: edge.to,
     weight: edge.weight
   })).filter(e => e.from && e.to);
-  res.json(mstEdges);
+  res.json({ edges: mstEdges }); // <-- wrap in { edges: ... }
 });
 
 
