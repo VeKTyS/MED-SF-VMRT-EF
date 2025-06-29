@@ -25,9 +25,10 @@ function timeToSeconds(t) {
 // Charger et parser pospoints.txt
 async function loadPosPointsFromDB() {
   return new Promise((resolve, reject) => {
-    conn.query('SELECT stop_lon, stop_lat, stop_name FROM stops', (err, results) => {
+    conn.query('SELECT stop_id, stop_lon, stop_lat, stop_name FROM stops', (err, results) => {
       if (err) return reject(err);
       const points = results.map(row => ({
+        id: row.stop_id,
         x: parseFloat(row.stop_lon),
         y: parseFloat(row.stop_lat),
         name: row.stop_name ? row.stop_name.trim() : ''
@@ -238,13 +239,17 @@ app.get('/api/djikstra', (req, res) => {
 app.get('/api/journey', (req, res) => {
   const { from, to } = req.query;
 
-  // Normalize input names (trim and convert to lowercase)
-  const normalizedFrom = from?.trim().toLowerCase();
-  const normalizedTo = to?.trim().toLowerCase();
+  if (!from || !to) {
+    return res.status(400).json({ error: "'from' and 'to' station IDs are required" });
+  }
 
-  // Find the stations by normalized name
-  const fromStation = stations.find(station => station.name.toLowerCase() === normalizedFrom);
-  const toStation = stations.find(station => station.name.toLowerCase() === normalizedTo);
+  // Normalize IDs: remove any "-7" or similar suffixes
+  const normalizeId = id => id.split('-')[0];
+  const fromId = normalizeId(from);
+  const toId = normalizeId(to);
+
+  const fromStation = stations.find(station => station.id === fromId);
+  const toStation = stations.find(station => station.id === toId);
 
   if (!fromStation || !toStation) {
     return res.status(404).json({ error: 'Station not found' });
@@ -280,6 +285,7 @@ app.get('/api/journey', (req, res) => {
     totalDistance: result.distances[toStation.id]
   });
 });
+
 
 // Helper to get station name from ID
 function getStationNameById(id) {
