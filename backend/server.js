@@ -79,19 +79,23 @@ async function loadMetroDataFromDB() {
     });
 
     // --- BUILD STATIONS FAST ---
-    stations = stopsResults.map(stop => {
-      const tripIds = stopToTrips[stop.stop_id] ? Array.from(stopToTrips[stop.stop_id]) : [];
-      const routeIds = [...new Set(tripIds.map(tripId => tripToRoute[tripId]).filter(Boolean))];
-      const lineNumbers = [...new Set(routeIds.map(routeId => routeIdToShortName[routeId]).filter(Boolean))];
+    const stationMap = new Map();
+    stopsResults.forEach(stop => {
+      if (!stationMap.has(stop.stop_id)) {
+        const tripIds = stopToTrips[stop.stop_id] ? Array.from(stopToTrips[stop.stop_id]) : [];
+        const routeIds = [...new Set(tripIds.map(tripId => tripToRoute[tripId]).filter(Boolean))];
+        const lineNumbers = [...new Set(routeIds.map(routeId => routeIdToShortName[routeId]).filter(Boolean))];
 
-      return {
-        id: stop.stop_id,
-        name: stop.stop_name,
-        lat: parseFloat(stop.stop_lat),
-        lon: parseFloat(stop.stop_lon),
-        lineNumbers
-      };
+        stationMap.set(stop.stop_id, {
+            id: stop.stop_id,
+            name: stop.stop_name,
+            lat: parseFloat(stop.stop_lat),
+            lon: parseFloat(stop.stop_lon),
+            lineNumbers
+          });
+      }
     });
+    stations = Array.from(stationMap.values());
 
     // --- BUILD LINKS (trips + pathways) ---
     links = [];
@@ -237,26 +241,29 @@ app.get('/api/djikstra', (req, res) => {
 });
 
 app.get('/api/journey', (req, res) => {
-  const { from, to } = req.query;
+  const { from, to } = req.query; // These are station IDs
 
   if (!from || !to) {
     return res.status(400).json({ error: "'from' and 'to' station IDs are required" });
   }
 
-  // Normalize IDs: remove any "-7" or similar suffixes
-  const normalizeId = id => id.split('-')[0];
-  const fromId = normalizeId(from);
-  const toId = normalizeId(to);
-
-  const fromStation = stations.find(station => station.id === fromId);
-  const toStation = stations.find(station => station.id === toId);
+  // Find stations by their ID.
+  const fromStation = stations.find(s => s.id === from);
+  const toStation = stations.find(s => s.id === to);
 
   if (!fromStation || !toStation) {
-    return res.status(404).json({ error: 'Station not found' });
+    console.error(`Journey endpoint: Station not found. From ID: '${from}', To ID: '${to}'`);
+    return res.status(404).json({ error: 'One or both station IDs could not be found.' });
   }
 
-  // Run Dijkstra's algorithm to calculate the shortest path
+  // Run Dijkstra's algorithm to calculate the shortest path using station IDs
   const result = Djikstra(graph, fromStation.id);
+
+  // Check if a path to the destination exists
+  if (!result.distances[toStation.id] || result.distances[toStation.id] === Infinity) {
+    console.error(`No path found from ${fromStation.name} (${fromStation.id}) to ${toStation.name} (${toStation.id})`);
+    return res.status(404).json({ error: 'No valid path found between the specified stations.' });
+  }
 
   // Extract the full path to the destination station
   const path = [];

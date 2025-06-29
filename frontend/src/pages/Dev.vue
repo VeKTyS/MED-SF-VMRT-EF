@@ -81,7 +81,7 @@
           <h2>{{ mstInfo.totalWeight }}</h2>
         </div>
       </div>
-      <div v-if="(mode === 'route' && roadmap.length) || (mode === 'mst' && roadmap.length)" class="roadmap-card">
+      <div v-if="(mode === 'route' && roadmap.length) || (mode === 'mst' && mstRoadmap.length)" class="roadmap-card">
         <div class="dev-time">
           <span v-if="mode === 'route'">Temps estimé</span>
           <h2 v-if="mode === 'route'">
@@ -92,7 +92,7 @@
         <div class="dev-roadmap-details">
           <h4>{{ mode === 'route' ? 'Roadmap' : 'Connections' }}</h4>
           <ol>
-            <li v-for="(item, idx) in roadmap" :key="idx">
+            <li v-for="(item, idx) in (mode === 'route' ? roadmap : mstRoadmap)" :key="idx">
               <span v-if="mode === 'route'">{{ item.name }}</span>
               <span v-if="mode === 'mst'">
                 {{ item.from }} ↔ {{ item.to }} ({{ item.weight }})
@@ -167,6 +167,7 @@
         roadmap: [],
         routeCoords: [],
         mstEdges: [],
+        mstRoadmap: [],
         mode: "route",
         startStation: null,
         endStation: null,
@@ -222,20 +223,28 @@
       const stationsArr = await fetch(`${this.apiBase}/stations`).then(r => r.json());
 
       // Now you can safely assign stationList
-      this.stationList = [];
+      const stationSuggestionsMap = new Map();
       stationsArr.forEach(st => {
-        // For each line number, create a distinct entry
-        (st.lineNumbers || []).forEach(line => {
-          this.stationList.push({
-            id: st.id,   // unique id per line
-            name: st.name,
-            lon: st.lon,
+        const cleanName = st.name.split(' (')[0].trim();
+        if (!stationSuggestionsMap.has(cleanName)) {
+          stationSuggestionsMap.set(cleanName, {
+            id: st.id, // Use the first ID encountered
+            name: cleanName,
             lat: st.lat,
-            lineNumber: line,
-            lineNumbers: [line],      // single line for this entry
+            lon: st.lon,
+            lineNumbers: new Set(st.lineNumbers)
           });
-        });
+        } else {
+          const existing = stationSuggestionsMap.get(cleanName);
+          st.lineNumbers.forEach(line => existing.lineNumbers.add(line));
+        }
       });
+
+      this.stationList = Array.from(stationSuggestionsMap.values()).map(st => ({
+        ...st,
+        lineNumbers: Array.from(st.lineNumbers)
+      }));
+
 
       this.stationsMap = {};
       stationsArr.forEach(st => {
@@ -256,6 +265,7 @@
     watch: {
       mode(newMode) {
         this.roadmap = [];
+        this.mstRoadmap = [];
         this.routeCoords = [];
         this.mstEdges = [];
         this.startInput = "";
@@ -284,24 +294,23 @@
         for (let i = 1; i < this.roadmap.length; i++) {
           const prev = this.roadmap[i - 1];
           const curr = this.roadmap[i];
-          const prevPos = this.pospointsMap[prev.id]; // ✅ au lieu de prev.name
-          console.log("prev", prev);
-          console.log("curr", curr);
-          console.log("prevPos", prevPos);  
-          const currPos = this.pospointsMap[curr.id]; // ✅ au lieu de curr.name
+          const prevPos = this.pospointsMap[prev.id];
+          const currPos = this.pospointsMap[curr.id];
 
-          let color = "#FFD600";
-          const prevStation = this.stationsMap[prev.id] || {};
-          if (prevStation.lineNumbers && prevStation.lineNumbers.length) {
-            color = this.lineColors[prevStation.lineNumbers[0]] || color;
+          if (prevPos && currPos) {
+            let color = "#FFD600"; // Default color
+            const prevStation = this.stationsMap[prev.id] || {};
+            if (prevStation.lineNumbers && prevStation.lineNumbers.length) {
+              color = this.lineColors[prevStation.lineNumbers[0]] || color;
+            }
+            segments.push({
+              latlngs: [
+                [prevPos.lat, prevPos.lon],
+                [currPos.lat, currPos.lon]
+              ],
+              color
+            });
           }
-          segments.push({
-            latlngs: [
-              [prevPos.lat, prevPos.lon],
-              [currPos.lat, currPos.lon]
-            ],
-            color
-          });
         }
         return segments;
       },
@@ -311,36 +320,53 @@
         console.log("Fetching journey from", this.startStation, "to", this.endStation);
         if (!this.startStation || !this.endStation || this.startStation.id === this.endStation.id) return;
 
-        // Use IDs instead of names here
-        const res = await fetch(`${this.apiBase}/journey?from=${encodeURIComponent(this.startStation.id)}&to=${encodeURIComponent(this.endStation.id)}`);
-        const data = await res.json();
+        try {
+          const fromId = encodeURIComponent(this.startStation.id);
+          const toId = encodeURIComponent(this.endStation.id);
 
-        if (!data.path || !Array.isArray(data.path)) {
+          const res = await fetch(`${this.apiBase}/journey?from=${fromId}&to=${toId}`);
+
+          if (!res.ok) {
+            const errorData = await res.json();
+            throw new Error(errorData.error || `HTTP error! status: ${res.status}`);
+          }
+
+          const data = await res.json();
+
+          if (!data.path || !Array.isArray(data.path) || data.path.length === 0) {
+            this.roadmap = [];
+            this.routeCoords = [];
+            this.totalDistance = 0;
+            alert("No valid path found between the selected stations.");
+            return;
+          }
+
+          this.roadmap = data.path.map(st => ({
+            id: st.id,
+            name: st.name,
+            cumulativeDistance: st.distance
+          }));
+
+          this.routeCoords = data.path
+            .map(st => this.pospointsMap[st.id])
+            .filter(Boolean)
+            .map(st => [st.lat, st.lon]);
+
+          this.totalDistance = data.totalDistance || 0;
+        } catch (error) {
+          console.error("Failed to fetch journey:", error);
           this.roadmap = [];
           this.routeCoords = [];
           this.totalDistance = 0;
-          return;
+          alert(`Error finding journey: ${error.message}`);
         }
-
-        this.roadmap = data.path.map(st => ({
-          id: st.id,
-          name: st.name,
-          cumulativeDistance: st.distance
-        }));
-
-        this.routeCoords = data.path
-          .map(st => this.pospointsMap[st.id]) // ✅
-          .filter(Boolean)
-          .map(st => [st.lat, st.lon]);
-
-
-        this.totalDistance = data.totalDistance || 0;
       },
 
 
       async drawKruskal() {
         this.mstInfo = { totalWeight: 0, algorithm: 'Kruskal' };
         this.mstEdges = [];
+        this.mstRoadmap = [];
         const res = await fetch(`${this.apiBase}/kruskal`);
         const data = await res.json();
 
@@ -350,7 +376,7 @@
           return;
         }
 
-        this.roadmap = data.edges.map(e => ({ from: e.from, to: e.to, weight: e.weight }));
+        this.mstRoadmap = data.edges.map(e => ({ from: e.from, to: e.to, weight: e.weight }));
         this.mstInfo.totalWeight = data.edges.reduce((sum, edge) => sum + edge.weight, 0);
 
         this.mstEdges = data.edges.map(edge => {
@@ -362,6 +388,7 @@
       async drawPrim() {
         this.mstInfo = { totalWeight: 0, algorithm: 'Prim' };
         this.mstEdges = [];
+        this.mstRoadmap = [];
         const res = await fetch(`${this.apiBase}/prim`);
         const data = await res.json();
 
@@ -371,7 +398,7 @@
           return;
         }
 
-        this.roadmap = data.edges.map(e => ({ from: e.from, to: e.to, weight: e.weight }));
+        this.mstRoadmap = data.edges.map(e => ({ from: e.from, to: e.to, weight: e.weight }));
         this.mstInfo.totalWeight = data.edges.reduce((sum, edge) => sum + edge.weight, 0);
 
         this.mstEdges = data.edges.map(edge => {
@@ -396,8 +423,7 @@
               )
               .map(st => ({
                 ...st,
-                id: st.id,
-                label: `${st.name} (Ligne ${st.lineNumbers.join(", ")})`
+                label: `${st.name} (Lignes ${st.lineNumbers.join(", ")})`
               }))
           : [];
         this.showStartSuggestions = this.filteredStartSuggestions.length > 0;
@@ -415,8 +441,7 @@
               )
               .map(st => ({
                 ...st,
-                id: st.id,
-                label: `${st.name} (Ligne ${st.lineNumber})`
+                label: `${st.name} (Lignes ${st.lineNumbers.join(", ")})`
               }))
           : [];
         this.showEndSuggestions = this.filteredEndSuggestions.length > 0;
