@@ -165,7 +165,7 @@
           :weight="2"
         />
         <l-polyline
-          v-for="(edge, idx) in mstEdges"
+          v-for="(edge, idx) in animatedMstEdges"
           :key="'mst-edge-' + idx"
           :lat-lngs="edge"
           color="red"
@@ -216,6 +216,7 @@
         roadmap: [],
         routeCoords: [],
         mstEdges: [],
+        animatedMstEdges: [], // Pour l'animation Kruskal
         mstRoadmap: [],
         bfsEdges: [],       // Edges pour l'arbre BFS
         bfsRoadmap: [],     // Liste des connexions BFS
@@ -309,6 +310,7 @@
         this.connexeStatus = null;
         this.routeCoords = [];
         this.mstEdges = [];
+        this.animatedMstEdges = [];
         this.startInput = "";
         this.endInput = "";
         this.startStation = "";
@@ -401,9 +403,9 @@
 
       async drawKruskal() {
         this.isLoading = true;
-        console.log("Drawing Kruskal's algorithm MST");
         this.mstInfo = { totalWeight: 0, algorithm: 'Kruskal' };
         this.mstEdges = [];
+        this.animatedMstEdges = [];
         this.mstRoadmap = [];
         const res = await fetch(`${this.apiBase}/kruskal`);
         const data = await res.json();
@@ -416,12 +418,32 @@
         this.mstRoadmap = data.edges.map(e => ({ from: e.from, to: e.to, weight: e.weight }));
         this.mstInfo.totalWeight = data.edges.reduce((sum, edge) => sum + edge.weight, 0);
 
+        // Prépare les segments pour l'animation
         this.mstEdges = data.edges.map(edge => {
           const from = this.pospointsMap[edge.fromId];
           const to = this.pospointsMap[edge.toId];
           return from && to ? [[from.lat, from.lon], [to.lat, to.lon]] : null;
         }).filter(Boolean);
+        this.animatedMstEdges = [];
+        this.animateKruskal();
         this.isLoading = false;
+      },
+      animateKruskal() {
+        // Animation très rapide et fluide
+        this.animatedMstEdges = [];
+        let i = 0;
+        const total = this.mstEdges.length;
+        const step = () => {
+          if (i < total) {
+            this.animatedMstEdges.push(this.mstEdges[i]);
+            i++;
+            // Utilise requestAnimationFrame pour la fluidité, mais saute quelques frames pour aller vite
+            if (i < total) {
+              setTimeout(step, 15); // 15ms par arête, ajustable pour la vitesse
+            }
+          }
+        };
+        step();
       },
       // Récupère l'arbre BFS de connexité
       async fetchConnexite() {
