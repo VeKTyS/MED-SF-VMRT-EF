@@ -147,7 +147,7 @@ function kruskal_acpm(graph) {
   return mst;
 }
 
-function prim_acpm(graph){
+/* function prim_acpm(graph){
   const mst = [];
   const visited = new Set();
   const edges = [];
@@ -184,7 +184,7 @@ function prim_acpm(graph){
 
   return mst;
 }
-
+ */
 function connexite(graph){
   const stationIds = Object.keys(graph);
   const isolated = stationIds.filter(id => (graph[id] || []).length === 0);

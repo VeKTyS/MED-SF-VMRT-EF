@@ -71,7 +71,6 @@
         </div>
         <div v-if="mode === 'mst'" class="mst-controls">
           <button class="dev-search-btn" @click="drawKruskal" :disabled="isLoading">Afficher Kruskal</button>
-          <button class="dev-search-btn" @click="drawPrim" :disabled="isLoading">Afficher Prim</button>
         </div>
       </div>
       <div v-if="mode === 'mst' && mstInfo.totalWeight > 0" class="roadmap-card">
@@ -349,30 +348,6 @@
         this.mstEdges = [];
         this.mstRoadmap = [];
         const res = await fetch(`${this.apiBase}/kruskal`);
-        const data = await res.json();
-
-        if (!data.edges || !Array.isArray(data.edges)) {
-          this.isLoading = false;
-          return;
-        }
-
-        this.mstRoadmap = data.edges.map(e => ({ from: e.from, to: e.to, weight: e.weight }));
-        this.mstInfo.totalWeight = data.edges.reduce((sum, edge) => sum + edge.weight, 0);
-
-        this.mstEdges = data.edges.map(edge => {
-          const from = this.pospointsMap[edge.fromId];
-          const to = this.pospointsMap[edge.toId];
-          return from && to ? [[from.lat, from.lon], [to.lat, to.lon]] : null;
-        }).filter(Boolean);
-        this.isLoading = false;
-      },
-      async drawPrim() {
-        this.isLoading = true;
-        console.log("Drawing Prim's algorithm MST");
-        this.mstInfo = { totalWeight: 0, algorithm: 'Prim' };
-        this.mstEdges = [];
-        this.mstRoadmap = [];
-        const res = await fetch(`${this.apiBase}/prim`);
         const data = await res.json();
 
         if (!data.edges || !Array.isArray(data.edges)) {
