@@ -14,6 +14,10 @@
             <input type="radio" v-model="mode" value="mst" />
             Arbre couvrant (ACPM)
           </label>
+          <label>
+            <input type="radio" v-model="mode" value="connexite" />
+            Connexité
+          </label>
         </div>
         <div v-if="mode === 'route'" class="route-controls">
           <div class="autocomplete-group">
@@ -91,6 +95,9 @@
         <div v-if="mode === 'mst'" class="mst-controls">
           <button class="dev-search-btn" @click="drawKruskal" :disabled="isLoading">Afficher Kruskal</button>
         </div>
+        <div v-if="mode === 'connexite'" class="connexite-controls">
+          <button class="dev-search-btn" @click="fetchConnexite" :disabled="isLoading">Afficher Connexité</button>
+        </div>
       </div>
       <div v-if="mode === 'mst' && mstInfo.totalWeight > 0" class="roadmap-card">
         <div class="dev-time">
@@ -102,22 +109,22 @@
           <h2>{{ mstInfo.totalWeight }}</h2>
         </div>
       </div>
-      <div v-if="(mode === 'route' && roadmap.length) || (mode === 'mst' && mstRoadmap.length)" class="roadmap-card">
+      <div v-if="(mode === 'route' && roadmap.length) || (mode === 'mst' && mstRoadmap.length) || (mode === 'connexite' && bfsRoadmap.length)" class="roadmap-card">
         <div class="dev-time">
           <span v-if="mode === 'route'">Temps estimé</span>
-          <h2 v-if="mode === 'route'">
-            {{ formattedTime }}
-          </h2>
+          <h2 v-if="mode === 'route'">{{ formattedTime }}</h2>
           <h4 v-if="mode === 'mst'">Réseau optimisé</h4>
+          <h4 v-if="mode === 'connexite'">Réseau complet (BFS)</h4>
         </div>
         <div class="dev-roadmap-details">
-          <h4>{{ mode === 'route' ? 'Roadmap' : 'Connections' }}</h4>
+          <h4>
+            {{ mode === 'route' ? 'Roadmap' : mode === 'mst' ? 'Connections' : 'Connexité' }}
+          </h4>
           <ol>
-            <li v-for="(item, idx) in (mode === 'route' ? roadmap : mstRoadmap)" :key="idx">
+            <li v-for="(item, idx) in (mode === 'route' ? roadmap : mode === 'mst' ? mstRoadmap : bfsRoadmap)" :key="idx">
               <span v-if="mode === 'route'">{{ item.name }}</span>
-              <span v-if="mode === 'mst'">
-                {{ item.from }} ↔ {{ item.to }} ({{ item.weight }})
-              </span>
+              <span v-if="mode === 'mst'">{{ item.from }} ↔ {{ item.to }} ({{ item.weight }})</span>
+              <span v-if="mode === 'connexite'">{{ item.from }} ↔ {{ item.to }}</span>
             </li>
           </ol>
         </div>
@@ -165,6 +172,13 @@
           :weight="4"
         />
         <l-polyline
+          v-for="(edge, idx) in bfsEdges"
+          :key="'bfs-edge-' + idx"
+          :lat-lngs="edge"
+          color="#00FF00"
+          :weight="3"
+        />
+        <l-polyline
           v-for="(segment, idx) in coloredRouteSegments"
           :key="'route-segment-' + idx"
           :lat-lngs="segment.latlngs"
@@ -203,6 +217,9 @@
         routeCoords: [],
         mstEdges: [],
         mstRoadmap: [],
+        bfsEdges: [],       // Edges pour l'arbre BFS
+        bfsRoadmap: [],     // Liste des connexions BFS
+        connexeStatus: null,// Statut de la connexité
         mode: "route",
         startStation: null,
         endStation: null,
@@ -287,6 +304,9 @@
       mode(newMode) {
         this.roadmap = [];
         this.mstRoadmap = [];
+        this.bfsRoadmap = [];
+        this.bfsEdges = [];
+        this.connexeStatus = null;
         this.routeCoords = [];
         this.mstEdges = [];
         this.startInput = "";
@@ -402,6 +422,31 @@
           return from && to ? [[from.lat, from.lon], [to.lat, to.lon]] : null;
         }).filter(Boolean);
         this.isLoading = false;
+      },
+      // Récupère l'arbre BFS de connexité
+      async fetchConnexite() {
+        this.isLoading = true;
+        console.log("Fetching connexite BFS tree");
+        this.bfsEdges = [];
+        this.bfsRoadmap = [];
+        this.connexeStatus = null;
+        try {
+          const res = await fetch(`${this.apiBase}/connexite`);
+          if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
+          const data = await res.json();
+          this.connexeStatus = data.connexe;
+          this.bfsRoadmap = data.tree || [];
+          this.bfsEdges = this.bfsRoadmap.map(edge => {
+            const from = this.pospointsMap[edge.from];
+            const to = this.pospointsMap[edge.to];
+            return from && to ? [[from.lat, from.lon], [to.lat, to.lon]] : null;
+          }).filter(Boolean);
+        } catch (error) {
+          console.error("Failed to fetch connexite:", error);
+          alert(`Error fetching connexite: ${error.message}`);
+        } finally {
+          this.isLoading = false;
+        }
       },
       forbiddenWords() {
         return ["rue", "entrée", "Entrée", "r.", "avenue", "boulevard", 'bd', "place", "impasse", "allée", "chemin", "quai", "square", "voie"];

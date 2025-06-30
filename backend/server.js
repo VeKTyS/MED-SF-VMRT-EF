@@ -6,7 +6,7 @@ const bodyParser = require('body-parser');
 require('dotenv').config();
 
 const path = require('path');
-const { createGraph, Djikstra, kruskal_acpm, prim_acpm, connexite} = require('./algorithms/graph');
+const { createGraph, Djikstra, kruskal_acpm, connexite, bfsTree } = require('./algorithms/graph');
 
 const app = express();
 app.use(bodyParser.json());
@@ -326,27 +326,10 @@ app.get('/api/prim', (req, res) => {
 
 
 app.get('/api/connexite', (req, res) => {
-  const stationIds = Object.keys(graph).filter(id => (graph[id] || []).length > 0);
-  if (stationIds.length === 0) return res.json({ connexe: true });
-
-  const visited = new Set();
-  const queue = [stationIds[0]];
-
-  while (queue.length) {
-    const current = queue.shift();
-    visited.add(current);
-    const neighbors = Array.isArray(graph[current]) ? graph[current] : [];
-    for (const neighbor of neighbors) {
-      if (!visited.has(neighbor)) {
-        queue.push(neighbor);
-        visited.add(neighbor);
-      }
-    }
-  }
-
-  const connexe = visited.size === stationIds.length;
-  console.log('Visited:', visited.size, 'Total:', stationIds.length);
-  res.json({ connexe });
+  // Retourne la connexité et l'arbre BFS couvrant
+  const connexe = connexite(graph);
+  const tree = bfsTree(graph);
+  res.json({ connexe, tree });
 });
 
 
