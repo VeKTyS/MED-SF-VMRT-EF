@@ -208,4 +208,4 @@ function connexite(graph){
   return visited.size === stationIds.length;
 }
 
-module.exports = { createGraph, Djikstra, kruskal_acpm, prim_acpm, connexite};
+module.exports = { createGraph, Djikstra, kruskal_acpm, connexite};
