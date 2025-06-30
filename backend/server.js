@@ -278,7 +278,7 @@ app.get('/api/journey', (req, res) => {
   }
 
   // Extract the full path to the destination station
-  const path = [];
+  let path = [];
   let currentStationId = toStation.id;
 
   while (currentStationId) {
@@ -292,6 +292,10 @@ app.get('/api/journey', (req, res) => {
     });
     currentStationId = result.previous[currentStationId];
   }
+
+  // Filtrer le chemin pour ne garder que les stations valides (présentes dans station_shown)
+  const validStationIds = new Set(station_shown.map(st => st.id));
+  path = path.filter(st => validStationIds.has(st.id));
 
   if (path.length === 0 || path[0].id !== fromStation.id) {
     return res.status(400).json({ error: 'No valid path found' });
