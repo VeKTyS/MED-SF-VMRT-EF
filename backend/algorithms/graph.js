@@ -187,25 +187,48 @@ function kruskal_acpm(graph) {
  */
 function connexite(graph){
   const stationIds = Object.keys(graph);
-  const isolated = stationIds.filter(id => (graph[id] || []).length === 0);
-  console.log('Isolated stations:', isolated);
   if (stationIds.length === 0) return true;
-
   const visited = new Set();
   const queue = [stationIds[0]];
-
   while (queue.length) {
     const current = queue.shift();
     visited.add(current);
-    const neighbors = graph[current] || [];
+    const neighbors = (graph[current].neighbors) || [];
     for (const neighbor of neighbors) {
-      if (!visited.has(neighbor)) {
-        queue.push(neighbor);
-        visited.add(neighbor);
+      const id = neighbor.id;
+      if (!visited.has(id)) {
+        queue.push(id);
+        visited.add(id);
       }
     }
   }
   return visited.size === stationIds.length;
 }
 
-module.exports = { createGraph, Djikstra, kruskal_acpm, connexite};
+// Ajout d'une fonction BFS pour générer un arbre couvrant basé sur la connexité
+function bfsTree(graph, startId = null) {
+  const ids = Object.keys(graph);
+  const visited = new Set();
+  const tree = [];
+
+  // Parcours BFS multi-composantes pour couvrir tout le graphe
+  ids.forEach(seed => {
+    if (!visited.has(seed)) {
+      visited.add(seed);
+      const queue = [seed];
+      while (queue.length) {
+        const current = queue.shift();
+        graph[current].neighbors.forEach(neighbor => {
+          if (!visited.has(neighbor.id)) {
+            visited.add(neighbor.id);
+            queue.push(neighbor.id);
+            tree.push({ from: current, to: neighbor.id });
+          }
+        });
+      }
+    }
+  });
+  return tree;
+}
+
+module.exports = { createGraph, Djikstra, kruskal_acpm, connexite, bfsTree };
