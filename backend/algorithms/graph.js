@@ -102,7 +102,10 @@ function kruskal_acpm(graph) {
     });
   }
 
-  const uniqueEdges = Array.from(new Set(edges.map(e => JSON.stringify(e)))).map(e => JSON.parse(e));
+  // Supprimer les arêtes de poids 1 (souvent des liens par défaut ou non pertinents)
+  const filteredEdges = edges.filter(e => e.weight !== 1);
+
+  const uniqueEdges = Array.from(new Set(filteredEdges.map(e => JSON.stringify(e)))).map(e => JSON.parse(e));
 
   // Sort edges by weight
   uniqueEdges.sort((a, b) => a.weight - b.weight);

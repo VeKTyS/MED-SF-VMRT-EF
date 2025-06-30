@@ -86,6 +86,7 @@ async function loadMetroDataFromDB() {
         const routeIds = [...new Set(tripIds.map(tripId => tripToRoute[tripId]).filter(Boolean))];
         const lineNumbers = [...new Set(routeIds.map(routeId => routeIdToShortName[routeId]).filter(Boolean))];
         
+        
         stationMap.set(stop.stop_id, {
             id: stop.stop_id,
             name: stop.stop_name,
@@ -96,6 +97,16 @@ async function loadMetroDataFromDB() {
       }
     });
     stations = Array.from(stationMap.values());
+
+    // -- SHOWN STATIONS --
+    // Filtrer explicitement pour ne garder que Métro/RER (pas TER, tram, bus, etc.)
+    const allowedLine = line => (/^\d+$/.test(line) || /^[A-E]$/.test(line)); // Métro (1-14) ou RER (A-E)
+    const forbiddenPattern = /(TER|TRAM|BUS|Noctilien|T[0-9]|N[0-9])/i;
+    station_shown = stations.filter(station =>
+      station.lineNumbers &&
+      station.lineNumbers.length > 0 &&
+      station.lineNumbers.every(line => allowedLine(line) && !forbiddenPattern.test(line))
+    );
 
     // --- BUILD LINKS (trips + pathways) ---
     links = [];
@@ -171,13 +182,14 @@ async function loadMetroDataFromDB() {
 }
 
 let stations = [];
+let station_shown = [];
 let links = [];
 let graph = {};
 
 loadMetroDataFromDB();
 
 app.get('/api/stations', (req, res) => {
-  res.json(stations);
+  res.json(station_shown);
 });
 
 app.get('/api/links', (req, res) => {
@@ -301,7 +313,28 @@ function getStationNameById(id) {
 }
 
 app.get('/api/kruskal', (req, res) => {
-  const mst = kruskal_acpm(graph);
+  // On veut un graphe restreint aux stations et liens Métro/RER
+  const allowedLine = line => (/^\d+$/.test(line) || /^[A-E]$/.test(line));
+  const forbiddenPattern = /(TER|TRAM|BUS|Noctilien|T[0-9]|N[0-9])/i;
+
+  // Filtrer les stations
+  const metroStations = stations.filter(station =>
+    station.lineNumbers &&
+    station.lineNumbers.length > 0 &&
+    station.lineNumbers.every(line => allowedLine(line) && !forbiddenPattern.test(line))
+  );
+  const metroStationIds = new Set(metroStations.map(st => st.id));
+
+  // Filtrer les liens pour ne garder que ceux entre deux stations métro/rer
+  const metroLinks = links.filter(link =>
+    metroStationIds.has(link.from) && metroStationIds.has(link.to)
+  );
+
+  // Créer un graphe restreint
+  const metroGraph = createGraph(metroStations, metroLinks);
+
+  // Appliquer Kruskal sur ce graphe
+  const mst = kruskal_acpm(metroGraph);
   const mstEdges = mst.map(edge => ({
     from: getStationNameById(edge.from),
     to: getStationNameById(edge.to),
@@ -309,7 +342,7 @@ app.get('/api/kruskal', (req, res) => {
     toId: edge.to,
     weight: edge.weight
   })).filter(e => e.from && e.to);
-  res.json({ edges: mstEdges }); // <-- wrap in { edges: ... }
+  res.json({ edges: mstEdges });
 });
 
 app.get('/api/prim', (req, res) => {
@@ -326,9 +359,29 @@ app.get('/api/prim', (req, res) => {
 
 
 app.get('/api/connexite', (req, res) => {
+  // Connexité uniquement sur le réseau Métro/RER
+  const allowedLine = line => (/^\d+$/.test(line) || /^[A-E]$/.test(line));
+  const forbiddenPattern = /(TER|TRAM|BUS|Noctilien|T[0-9]|N[0-9])/i;
+
+  // Filtrer les stations
+  const metroStations = stations.filter(station =>
+    station.lineNumbers &&
+    station.lineNumbers.length > 0 &&
+    station.lineNumbers.every(line => allowedLine(line) && !forbiddenPattern.test(line))
+  );
+  const metroStationIds = new Set(metroStations.map(st => st.id));
+
+  // Filtrer les liens pour ne garder que ceux entre deux stations métro/rer
+  const metroLinks = links.filter(link =>
+    metroStationIds.has(link.from) && metroStationIds.has(link.to)
+  );
+
+  // Créer un graphe restreint
+  const metroGraph = createGraph(metroStations, metroLinks);
+
   // Retourne la connexité et l'arbre BFS couvrant
-  const connexe = connexite(graph);
-  const tree = bfsTree(graph);
+  const connexe = connexite(metroGraph);
+  const tree = bfsTree(metroGraph);
   res.json({ connexe, tree });
 });
 

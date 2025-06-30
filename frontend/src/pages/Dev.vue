@@ -106,7 +106,7 @@
             L'ACPM représente le réseau de transport le plus court connectant toutes les stations avec le coût total le plus bas (temps de trajet). C'est une manière de visualiser le réseau le plus efficace possible.
           </p>
           <span>Coût total du réseau</span>
-          <h2>{{ mstInfo.totalWeight }}</h2>
+          <h2>{{ formatTime(mstInfo.totalWeight) }}</h2>
         </div>
       </div>
       <div v-if="(mode === 'route' && roadmap.length) || (mode === 'mst' && mstRoadmap.length) || (mode === 'connexite' && bfsRoadmap.length)" class="roadmap-card">
@@ -357,7 +357,7 @@
       },
     },
     methods: {  
-     async fetchJourney() {
+      async fetchJourney() {
         this.isLoading = true;
         console.log("Fetching journey from", this.startStation, "to", this.endStation);
         if (!this.startStation || !this.endStation || this.startStation.id === this.endStation.id) return;
@@ -589,6 +589,13 @@
       getMainLine(station) {
         // Adapte selon ta structure de données
         return station.lineNumber && station.lineNumber.length ? station.lineNumber[0] : null;
+      },
+      formatTime(seconds) {
+        if (!seconds || isNaN(seconds)) return '00:00:00';
+        const h = Math.floor(seconds / 3600);
+        const m = Math.floor((seconds % 3600) / 60);
+        const s = Math.floor(seconds % 60);
+        return [h, m, s].map(v => v.toString().padStart(2, '0')).join(':');
       }
     }
   };
