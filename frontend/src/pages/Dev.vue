@@ -34,9 +34,18 @@
                 @mousedown.prevent="selectStartSuggestion(suggestion)"
               >
                 {{ suggestion.label }}
+                <span v-if="suggestion.lineNumbers && suggestion.lineNumbers.length" style="margin-left:8px;">
+                  - <span
+                      :style="{
+                        color: getLineType(suggestion) === 'Métro' ? '#FFD600'
+                            : getLineType(suggestion) === 'RER' ? '#4185C5'
+                            : '#fff'
+                      }"
+                    >
+                    {{ getLineType(suggestion) }} {{ suggestion.lineNumbers[0] }}
+                  </span>
+                </span>
               </li>
-
-
             </ul>
           </div>
           <div class="autocomplete-group">
@@ -57,8 +66,18 @@
                 @mousedown.prevent="selectEndSuggestion(suggestion)"
               >
                 {{ suggestion.label }}
+                <span v-if="suggestion.lineNumbers && suggestion.lineNumbers.length" style="margin-left:8px;">
+                  - <span
+                      :style="{
+                        color: getLineType(suggestion) === 'Métro' ? '#FFD600'
+                            : getLineType(suggestion) === 'RER' ? '#4185C5'
+                            : '#fff'
+                      }"
+                    >
+                    {{ getLineType(suggestion) }} {{ suggestion.lineNumbers[0] }}
+                  </span>
+                </span>
               </li>
-
             </ul>
           </div>
           <button
@@ -141,11 +160,10 @@
           v-for="station in roadmap"
           :key="station.id"
           :lat-lng="[pospointsMap[station.id]?.lat, pospointsMap[station.id]?.lon]"
+          :icon="getMetroIcon(stationsMap[station.id])"
         >
           <l-popup>{{ station.name }}</l-popup>
         </l-marker>
-
-
       </l-map>
     </div>
   </div>
@@ -204,14 +222,19 @@
           "11": "#704B1C",   // Marron
           "12": "#007852",   // Vert foncé
           "13": "#6EC4E8",   // Bleu clair
-          "14": "#62259D"    // Violet foncé
+          "14": "#62259D",   // Violet foncé
+          "A": "#E2231A",    // RER A - Rouge
+          "B": "#4185C5",    // RER B - Bleu
+          "C": "#F9D616",    // RER C - Jaune
+          "D": "#00814F",    // RER D - Vert
+          "E": "#C48C31"     // RER E - Violet/Brun
         },
         stationsMap: {}, // for fast lookup of station info by name or id
         isLoading: false // indicate loading state for journey or MST
       };
     },
     async mounted() {
-      // Fetch all station coordinates
+
       this.pospoints = await fetch(`${this.apiBase}/pospoints`).then(r => r.json());
       this.pospoints.forEach(p => {
         if (p.lat === undefined && p.y !== undefined) p.lat = p.y;
@@ -222,20 +245,20 @@
         this.pospointsMap[p.id] = p;
       });
 
-      // Fetch all stations for line info
+
       const stationsArr = await fetch(`${this.apiBase}/stations`).then(r => r.json());
 
-      // Restore original stationList without filtering
+
       this.stationList = stationsArr;
 
-      // Create the stationsMap for lookups
+
       this.stationsMap = {};
       stationsArr.forEach(st => {
         this.stationsMap[st.id] = st;
-        this.stationsMap[st.name] = st; // for lookup by name
+        this.stationsMap[st.name] = st; 
       });
 
-      // Fetch subway edges
+
       const { links } = await fetch(`${this.apiBase}/links`).then(r => r.json()).catch(() => ({ links: [] }));
       this.subwayEdges = links
         .map(({ from, to }) => {
@@ -260,7 +283,7 @@
     },
     computed: {
       formattedTime() {
-        // Assuming totalDistance is in seconds
+
         const total = Math.round(this.totalDistance);
         const hours = Math.floor(total / 3600);
         const minutes = Math.floor((total % 3600) / 60);
@@ -281,7 +304,7 @@
           const currPos = this.pospointsMap[curr.id];
 
           if (prevPos && currPos) {
-            let color = "#FFD600"; // Default color
+            let color = "#FFD600"; 
             const prevStation = this.stationsMap[prev.id] || {};
             if (prevStation.lineNumbers && prevStation.lineNumbers.length) {
               color = this.lineColors[prevStation.lineNumbers[0]] || color;
@@ -406,7 +429,7 @@
       selectStartSuggestion(suggestion) {
         console.log("Selected start suggestion:", suggestion);
         this.startInput = suggestion.name;
-        this.startStation = suggestion; // <-- was suggestion.id ❌
+        this.startStation = suggestion;
         this.filteredStartSuggestions = [];
         this.showStartSuggestions = false;
       },
@@ -414,7 +437,7 @@
       selectEndSuggestion(suggestion) {
         console.log("Selected end suggestion:", suggestion);
         this.endInput = suggestion.name;
-        this.endStation = suggestion; // <-- was suggestion.id ❌
+        this.endStation = suggestion; 
         this.filteredEndSuggestions = [];
         this.showEndSuggestions = false;
       },
@@ -440,6 +463,34 @@
         const km = distance / 1000;
         return km >= 1 ? `${km.toFixed(1)} km` : `${distance} m`;
       },
+      getLineType(station) {
+        if (!station.lineNumbers || !station.lineNumbers.length) return '';
+        const line = station.lineNumbers[0];
+        if (/^\d+$/.test(line)) return 'Métro';
+        if (/^[A-E]$/.test(line)) return 'RER';
+        if (/TER/i.test(line)) return 'TER';
+        if (/BUS/i.test(line)) return 'Bus';
+        return '';
+      },
+      getMetroIcon(station) {
+        // Récupère la couleur de la ligne principale
+        const color = (station.lineNumbers && station.lineNumbers.length)
+          ? this.lineColors[station.lineNumbers[0]] || "#FFD600"
+          : "#FFD600";
+        // SVG cercle plein
+        const svg = `
+          <svg width="28" height="28" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="14" cy="14" r="10" fill="${color}" stroke="#232733" stroke-width="4"/>
+          </svg>
+        `;
+        return L.divIcon({
+          className: "",
+          html: svg,
+          iconSize: [28, 28],
+          iconAnchor: [14, 14],
+          popupAnchor: [0, -14]
+        });
+      }
     }
   };
 </script>

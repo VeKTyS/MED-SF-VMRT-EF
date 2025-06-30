@@ -84,23 +84,15 @@
     <div class="map-panel">
       <l-map
         style="height: 100vh; width: 100%; min-width: 600px"
-        :zoom="0"
-        :center="[mapHeight / 2, mapWidth / 2]"
-        :crs="simpleCrs"
-        :maxBounds="[[0,0],[mapHeight,mapWidth]]"
-        :minZoom="-2"
-        :maxZoom="4"
-        :zoomControl="false"
+        :zoom="12"
+        :center="[mapCenterLat, mapCenterLon]"
+        :zoomControl="true"
         :scrollWheelZoom="true"
       >
-        <!-- Optionally, add a background image for your map here -->
-        <!--
-        <l-image-overlay
-          v-if="backgroundImage"
-          :url="backgroundImage"
-          :bounds="[[0,0],[mapHeight,mapWidth]]"
+        <l-tile-layer
+          url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
+          attribution="&copy; <a href='https://www.openstreetmap.org/copyright'>OpenStreetMap</a> contributors &copy; <a href='https://carto.com/attributions'>CARTO</a>"
         />
-        -->
         <l-polyline
           v-for="(edge, idx) in subwayEdges"
           :key="idx"
@@ -109,15 +101,23 @@
           :weight="2"
         />
         <l-polyline
-          v-if="routeCoords.length"
-          :lat-lngs="routeCoords"
-          color="#FFD600"
+          v-for="(edge, idx) in mstEdges"
+          :key="'mst-edge-' + idx"
+          :lat-lngs="edge"
+          color="red"
+          :weight="4"
+        />
+        <l-polyline
+          v-for="(segment, idx) in coloredRouteSegments"
+          :key="'route-segment-' + idx"
+          :lat-lngs="segment.latlngs"
+          :color="segment.color"
           :weight="6"
         />
         <l-marker
-          v-for="station in pospoints"
-          :key="station.name"
-          :lat-lng="[station.y, station.x]"
+          v-for="station in roadmap"
+          :key="station.id"
+          :lat-lng="[pospointsMap[station.id]?.lat, pospointsMap[station.id]?.lon]"
         >
           <l-popup>{{ station.name }}</l-popup>
         </l-marker>
@@ -154,7 +154,6 @@ export default {
       mode: "route",
       startStation: "",
       endStation: "",
-      // Autocomplete
       startInput: "",
       endInput: "",
       filteredStartSuggestions: [],
@@ -163,9 +162,11 @@ export default {
       showEndSuggestions: false,
       // Simple CRS settings
       simpleCrs: L.CRS.Simple,
-      mapWidth: 1000,   // Set to your network's pixel width
-      mapHeight: 800,   // Set to your network's pixel height
-      backgroundImage: null // Optionally, set a background image for your map
+      mapWidth: 1000,   
+      mapHeight: 800,   
+      backgroundImage: null,
+      mapCenterLat: 48.8566, 
+      mapCenterLon: 2.3522  
     };
   },
   async mounted() {
@@ -190,9 +191,6 @@ export default {
         ] : null;
       })
       .filter(Boolean);
-
-    // Optionally, set a background image (must match mapWidth/mapHeight)
-    // this.backgroundImage = require('@/assets/your-background.png');
   },
   watch: {
     mode(newMode) {
@@ -394,10 +392,11 @@ body, .main-layout {
 }
 
 .suggestions {
+  font-size: 1rem;
   list-style: none;
   padding: 0;
   margin: 0;
-  background: rgba(255, 255, 255, 0.1);
+  background: #232733;
   border-radius: 4px;
   border: 1px solid #444;
   max-height: 200px;
@@ -439,6 +438,7 @@ body, .main-layout {
 }
 
 .roadmap-card {
+  font-size: 1.2rem;
   background: rgba(255, 255, 255, 0.1);
   border-radius: 8px;
   padding: 20px;
