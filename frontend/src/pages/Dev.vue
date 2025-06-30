@@ -121,6 +121,21 @@
             </li>
           </ol>
         </div>
+        <div v-if="mode === 'route'" class="dev-roadmap-details">
+          <h4>Roadmap par ligne</h4>
+          <ul>
+            <li v-for="(segment, idx) in groupRoadmapByLine(roadmap)" :key="idx">
+              <span>
+                <b style="margin-right:8px;"
+                   :style="{color: lineColors[segment.line] || '#FFD600'}">
+                  Ligne {{ segment.line }}
+                </b>
+                : {{ segment.from }} → {{ segment.to }}
+                ({{ segment.count }} stations)
+              </span>
+            </li>
+          </ul>
+        </div>
       </div>
     </div>
     <div class="map-panel">
@@ -389,7 +404,7 @@
         this.isLoading = false;
       },
       forbiddenWords() {
-        return ["rue", "entrée", "Entrée", "r.", "avenue", "boulevard", "place", "impasse", "allée", "chemin", "quai", "square", "voie"];
+        return ["rue", "entrée", "Entrée", "r.", "avenue", "boulevard", 'bd', "place", "impasse", "allée", "chemin", "quai", "square", "voie"];
       },
       filterStartSuggestions() {
         const input = this.startInput.trim().toLowerCase();
@@ -490,6 +505,45 @@
           iconAnchor: [14, 14],
           popupAnchor: [0, -14]
         });
+      },
+
+      groupRoadmapByLine(roadmap) {
+        if (!roadmap || roadmap.length === 0) return [];
+        const segments = [];
+        let startIdx = 0;
+        let currentLine = this.getMainLine(roadmap[0]);
+
+        for (let i = 1; i < roadmap.length; i++) {
+          const line = this.getMainLine(roadmap[i]);
+          if (line !== currentLine) {
+            segments.push({
+              line: currentLine,
+              from: roadmap[startIdx].name,
+              to: roadmap[i - 1].name,
+              fromId: roadmap[startIdx].id,
+              toId: roadmap[i - 1].id,
+              count: i - startIdx
+            });
+            startIdx = i - 1;
+            currentLine = line;
+          }
+        }
+        // Dernier segment
+        segments.push({
+          line: currentLine,
+          from: roadmap[startIdx].name,
+          to: roadmap[roadmap.length - 1].name,
+          fromId: roadmap[startIdx].id,
+          toId: roadmap[roadmap.length - 1].id,
+          count: roadmap.length - startIdx - 1
+        });
+        return segments;
+      },
+
+      // Helper pour récupérer la ligne principale d'une station
+      getMainLine(station) {
+        // Adapte selon ta structure de données
+        return station.lineNumber && station.lineNumber.length ? station.lineNumber[0] : null;
       }
     }
   };
