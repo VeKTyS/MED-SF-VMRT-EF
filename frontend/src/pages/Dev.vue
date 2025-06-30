@@ -39,15 +39,19 @@
               >
                 {{ suggestion.label }}
                 <span v-if="suggestion.lineNumbers && suggestion.lineNumbers.length" style="margin-left:8px;">
-                  - <span
-                      :style="{
-                        color: getLineType(suggestion) === 'Métro' ? '#FFD600'
-                            : getLineType(suggestion) === 'RER' ? '#4185C5'
-                            : '#fff'
-                      }"
-                    >
-                    {{ getLineType(suggestion) }} {{ suggestion.lineNumbers[0] }}
-                  </span>
+                  <template v-if="getLineType(suggestion) === 'RER'">
+                    -
+                    <span v-for="(line, idx) in suggestion.lineNumbers" :key="'rerline-' + line">
+                      <span :style="{ color: lineColors[line] || '#4185C5', 'margin-right': '4px' }">
+                        RER {{ line }}<span v-if="idx < suggestion.lineNumbers.length - 1">, </span>
+                      </span>
+                    </span>
+                  </template>
+                  <template v-else>
+                    - <span :style="{ color: getLineType(suggestion) === 'Métro' ? '#FFD600' : '#fff' }">
+                      {{ getLineType(suggestion) }} {{ suggestion.lineNumbers[0] }}
+                    </span>
+                  </template>
                 </span>
               </li>
             </ul>
@@ -71,15 +75,19 @@
               >
                 {{ suggestion.label }}
                 <span v-if="suggestion.lineNumbers && suggestion.lineNumbers.length" style="margin-left:8px;">
-                  - <span
-                      :style="{
-                        color: getLineType(suggestion) === 'Métro' ? '#FFD600'
-                            : getLineType(suggestion) === 'RER' ? '#4185C5'
-                            : '#fff'
-                      }"
-                    >
-                    {{ getLineType(suggestion) }} {{ suggestion.lineNumbers[0] }}
-                  </span>
+                  <template v-if="getLineType(suggestion) === 'RER'">
+                    -
+                    <span v-for="(line, idx) in suggestion.lineNumbers" :key="'rerline-' + line">
+                      <span :style="{ color: lineColors[line] || '#4185C5', 'margin-right': '4px' }">
+                        RER {{ line }}<span v-if="idx < suggestion.lineNumbers.length - 1">, </span>
+                      </span>
+                    </span>
+                  </template>
+                  <template v-else>
+                    - <span :style="{ color: getLineType(suggestion) === 'Métro' ? '#FFD600' : '#fff' }">
+                      {{ getLineType(suggestion) }} {{ suggestion.lineNumbers[0] }}
+                    </span>
+                  </template>
                 </span>
               </li>
             </ul>
@@ -144,6 +152,41 @@
           </ul>
         </div>
       </div>
+      <div v-if="mode === 'connexite' && components.length > 0" class="roadmap-card" style="margin-bottom:16px;">
+        <div class="dev-time">
+          <h4>Composantes connexes détectées</h4>
+          <p>
+            Nombre de composantes : <b>{{ components.length }}</b><br>
+            Taille de chaque composante :
+            <span v-for="(comp, idx) in components" :key="'comp-size-' + idx">
+              <b>{{ comp.length }}</b><span v-if="idx < components.length - 1">, </span>
+            </span>
+          </p>
+          <span v-if="components.length > 1" style="color:red;">Le réseau n'est pas totalement connexe !</span>
+          <span v-else style="color:green;">Le réseau est connexe.</span>
+        </div>
+      </div>
+      <div v-if="mode === 'connexite' && components.length > 1" class="roadmap-card" style="margin-bottom:16px;">
+        <div class="dev-time">
+          <h4>Pourquoi le réseau n'est pas connexe ?</h4>
+          <p>
+            <span v-if="components.length > 1">
+              <b>Stations isolées ou composantes non connectées :</b>
+              <ul>
+                <li v-for="(comp, idx) in components.filter(c => Array.isArray(c) && c.length < 10)" :key="'comp-reason-' + idx">
+                  <b>Composante {{ idx + 1 }} ({{ comp.length }} stations) :</b>
+                  <span v-for="id in comp" :key="id">
+                    {{ stationsMap[id]?.name || id }}<span v-if="comp.length > 1">, </span>
+                  </span>
+                </li>
+              </ul>
+              <span v-if="components.filter(c => c.length < 10).length === 0">
+                <i>Toutes les composantes sont de grande taille. Vérifiez les correspondances ou les liens manquants.</i>
+              </span>
+            </span>
+          </p>
+        </div>
+      </div>
     </div>
     <div class="map-panel">
       <l-map
@@ -186,10 +229,10 @@
           :weight="6"
         />
         <l-marker
-          v-for="station in roadmap"
+          v-for="(station, idx) in roadmap"
           :key="station.id"
           :lat-lng="[pospointsMap[station.id]?.lat, pospointsMap[station.id]?.lon]"
-          :icon="getMetroIcon(stationsMap[station.id])"
+          :icon="getMetroIconWithColor(stationsMap[station.id], roadmapColors[idx])"
         >
           <l-popup>{{ station.name }}</l-popup>
         </l-marker>
@@ -221,6 +264,7 @@
         bfsEdges: [],       // Edges pour l'arbre BFS
         bfsRoadmap: [],     // Liste des connexions BFS
         connexeStatus: null,// Statut de la connexité
+        components: [], // Liste des composantes connexes
         mode: "route",
         startStation: null,
         endStation: null,
@@ -339,12 +383,16 @@
           const curr = this.roadmap[i];
           const prevPos = this.pospointsMap[prev.id];
           const currPos = this.pospointsMap[curr.id];
-
           if (prevPos && currPos) {
-            let color = "#FFD600"; 
+            // Find common line between prev and curr
             const prevStation = this.stationsMap[prev.id] || {};
-            if (prevStation.lineNumbers && prevStation.lineNumbers.length) {
-              color = this.lineColors[prevStation.lineNumbers[0]] || color;
+            const currStation = this.stationsMap[curr.id] || {};
+            let color = "#FFD600"; // Default
+            if (prevStation.lineNumbers && currStation.lineNumbers) {
+              const commonLines = prevStation.lineNumbers.filter(l => currStation.lineNumbers.includes(l));
+              if (commonLines.length > 0) {
+                color = this.lineColors[commonLines[0]] || color;
+              }
             }
             segments.push({
               latlngs: [
@@ -356,6 +404,35 @@
           }
         }
         return segments;
+      },
+      roadmapColors() {
+        // Returns an array of colors for each station in roadmap, based on the line used to reach it
+        if (!this.roadmap.length) return [];
+        const colors = [];
+        for (let i = 0; i < this.roadmap.length; i++) {
+          if (i === 0) {
+            // First station: use its main line or default
+            const st = this.stationsMap[this.roadmap[0].id] || {};
+            let color = "#FFD600";
+            if (st.lineNumbers && st.lineNumbers.length) {
+              color = this.lineColors[st.lineNumbers[0]] || color;
+            }
+            colors.push(color);
+          } else {
+            // For other stations, use the line shared with previous
+            const prev = this.stationsMap[this.roadmap[i - 1].id] || {};
+            const curr = this.stationsMap[this.roadmap[i].id] || {};
+            let color = "#FFD600";
+            if (prev.lineNumbers && curr.lineNumbers) {
+              const commonLines = prev.lineNumbers.filter(l => curr.lineNumbers.includes(l));
+              if (commonLines.length > 0) {
+                color = this.lineColors[commonLines[0]] || color;
+              }
+            }
+            colors.push(color);
+          }
+        }
+        return colors;
       },
     },
     methods: {  
@@ -452,12 +529,14 @@
         this.bfsEdges = [];
         this.bfsRoadmap = [];
         this.connexeStatus = null;
+        this.components = [];
         try {
           const res = await fetch(`${this.apiBase}/connexite`);
           if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
           const data = await res.json();
           this.connexeStatus = data.connexe;
           this.bfsRoadmap = data.tree || [];
+          this.components = data.components || [];
           this.bfsEdges = this.bfsRoadmap.map(edge => {
             const from = this.pospointsMap[edge.from];
             const to = this.pospointsMap[edge.to];
@@ -481,13 +560,29 @@
           this.showStartSuggestions = false;
           return;
         }
-        const suggestions = this.stationList.filter(st =>
+        // 1. Filter all matching stations
+        let suggestions = this.stationList.filter(st =>
           st.id &&
           st.name.toLowerCase().includes(input) &&
           !forbidden.some(word => st.name.toLowerCase().includes(word)) &&
           (!this.endStation || st.id !== this.endStation.id)
         );
-        this.filteredStartSuggestions = suggestions.map(st => ({ ...st, label: st.name }));
+        // 2. Group RER stations by name
+        const rerPattern = /^[A-E]$/;
+        const rerGroups = {};
+        const metroSuggestions = [];
+        suggestions.forEach(st => {
+          const isRER = st.lineNumbers && st.lineNumbers.length && st.lineNumbers.every(l => rerPattern.test(l));
+          if (isRER) {
+            if (!rerGroups[st.name]) rerGroups[st.name] = { ...st, lineNumbers: [] };
+            rerGroups[st.name].lineNumbers = Array.from(new Set([...rerGroups[st.name].lineNumbers, ...st.lineNumbers]));
+            // Keep the first ID for the group
+          } else {
+            metroSuggestions.push({ ...st, label: st.name });
+          }
+        });
+        const rerSuggestions = Object.values(rerGroups).map(st => ({ ...st, label: st.name }));
+        this.filteredStartSuggestions = [...metroSuggestions, ...rerSuggestions];
         this.showStartSuggestions = this.filteredStartSuggestions.length > 0;
       },
 
@@ -499,12 +594,25 @@
           this.showEndSuggestions = false;
           return;
         }
-        const suggestions = this.stationList.filter(st =>
+        let suggestions = this.stationList.filter(st =>
           st.name.toLowerCase().includes(input) &&
           !forbidden.some(word => st.name.toLowerCase().includes(word)) &&
           (!this.startStation || st.id !== this.startStation.id)
         );
-        this.filteredEndSuggestions = suggestions.map(st => ({ ...st, label: st.name }));
+        const rerPattern = /^[A-E]$/;
+        const rerGroups = {};
+        const metroSuggestions = [];
+        suggestions.forEach(st => {
+          const isRER = st.lineNumbers && st.lineNumbers.length && st.lineNumbers.every(l => rerPattern.test(l));
+          if (isRER) {
+            if (!rerGroups[st.name]) rerGroups[st.name] = { ...st, lineNumbers: [] };
+            rerGroups[st.name].lineNumbers = Array.from(new Set([...rerGroups[st.name].lineNumbers, ...st.lineNumbers]));
+          } else {
+            metroSuggestions.push({ ...st, label: st.name });
+          }
+        });
+        const rerSuggestions = Object.values(rerGroups).map(st => ({ ...st, label: st.name }));
+        this.filteredEndSuggestions = [...metroSuggestions, ...rerSuggestions];
         this.showEndSuggestions = this.filteredEndSuggestions.length > 0;
       },
 
@@ -560,6 +668,21 @@
           ? this.lineColors[station.lineNumbers[0]] || "#FFD600"
           : "#FFD600";
         // SVG cercle plein
+        const svg = `
+          <svg width="28" height="28" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="14" cy="14" r="10" fill="${color}" stroke="#232733" stroke-width="4"/>
+          </svg>
+        `;
+        return L.divIcon({
+          className: "",
+          html: svg,
+          iconSize: [28, 28],
+          iconAnchor: [14, 14],
+          popupAnchor: [0, -14]
+        });
+      },
+      getMetroIconWithColor(station, color) {
+        // Use the provided color for the marker
         const svg = `
           <svg width="28" height="28" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
             <circle cx="14" cy="14" r="10" fill="${color}" stroke="#232733" stroke-width="4"/>

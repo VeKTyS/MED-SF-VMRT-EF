@@ -6,7 +6,7 @@ const bodyParser = require('body-parser');
 require('dotenv').config();
 
 const path = require('path');
-const { createGraph, Djikstra, kruskal_acpm, connexite, bfsTree } = require('./algorithms/graph');
+const { createGraph, Djikstra, kruskal_acpm, connexite, bfsTree, getConnectedComponents } = require('./algorithms/graph');
 
 const app = express();
 app.use(bodyParser.json());
@@ -383,10 +383,11 @@ app.get('/api/connexite', (req, res) => {
   // Créer un graphe restreint
   const metroGraph = createGraph(metroStations, metroLinks);
 
-  // Retourne la connexité et l'arbre BFS couvrant
+  // Retourne la connexité, l'arbre BFS couvrant et les composantes connexes
   const connexe = connexite(metroGraph);
   const tree = bfsTree(metroGraph);
-  res.json({ connexe, tree });
+  const components = getConnectedComponents(metroGraph);
+  res.json({ connexe, tree, components });
 });
 
 

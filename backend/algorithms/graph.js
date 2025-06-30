@@ -234,4 +234,30 @@ function bfsTree(graph, startId = null) {
   return tree;
 }
 
-module.exports = { createGraph, Djikstra, kruskal_acpm, connexite, bfsTree };
+// Retourne la liste des composantes connexes (tableau de tableaux d'IDs)
+function getConnectedComponents(graph) {
+  const ids = Object.keys(graph);
+  const visited = new Set();
+  const components = [];
+  ids.forEach(seed => {
+    if (!visited.has(seed)) {
+      const comp = [];
+      const queue = [seed];
+      visited.add(seed);
+      while (queue.length) {
+        const current = queue.shift();
+        comp.push(current);
+        graph[current].neighbors.forEach(neighbor => {
+          if (!visited.has(neighbor.id)) {
+            visited.add(neighbor.id);
+            queue.push(neighbor.id);
+          }
+        });
+      }
+      components.push(comp);
+    }
+  });
+  return components;
+}
+
+module.exports = { createGraph, Djikstra, kruskal_acpm, connexite, bfsTree, getConnectedComponents };
