@@ -104,10 +104,20 @@
           </div>
         </div>
         <div v-if="mode === 'mst'" class="mst-controls">
-          <button class="dev-search-btn" @click="drawKruskal" :disabled="isLoading">Afficher Kruskal</button>
+          <button class="dev-search-btn" @click="drawKruskalWithTiming" :disabled="isLoading">
+            Afficher Kruskal
+          </button>
+          <div v-if="mstLoadTime !== null" style="margin-top: 8px; font-size: 0.95em; color: #888;">
+            Temps de chargement ACPM : {{ mstLoadTime.toFixed(0) }} ms
+          </div>
         </div>
         <div v-if="mode === 'connexite'" class="connexite-controls">
-          <button class="dev-search-btn" @click="fetchConnexite" :disabled="isLoading">Afficher Connexité</button>
+          <button class="dev-search-btn" @click="fetchConnexiteWithTiming" :disabled="isLoading">
+            Afficher Connexité
+          </button>
+          <div v-if="connexiteLoadTime !== null" class="loading-time">
+            Temps de chargement Connexité : {{ connexiteLoadTime.toFixed(0) }} ms
+          </div>
         </div>
       </div>
       <div v-if="mode === 'mst' && mstInfo.totalWeight > 0" class="roadmap-card">
@@ -311,7 +321,9 @@
         },
         stationsMap: {}, // for fast lookup of station info by name or id
         isLoading: false, // indicate loading state for journey or MST
-        lastJourneyLoadTime: null
+        lastJourneyLoadTime: null,
+        mstLoadTime: null,
+        connexiteLoadTime: null
       };
     },
     async mounted() {
@@ -536,6 +548,22 @@
         } finally {
           this.isLoading = false;
         }
+      },
+
+      async drawKruskalWithTiming() {
+        const start = performance.now();
+        await this.drawKruskal();
+        const end = performance.now();
+        this.mstLoadTime = end - start;
+        console.log(`Temps de chargement ACPM : ${this.mstLoadTime.toFixed(0)} ms`);
+      },
+
+      async fetchConnexiteWithTiming() {
+        const start = performance.now();
+        await this.fetchConnexite();
+        const end = performance.now();
+        this.connexiteLoadTime = end - start;
+        console.log(`Temps de chargement Connexité : ${this.connexiteLoadTime.toFixed(0)} ms`);
       },
 
       forbiddenWords() {

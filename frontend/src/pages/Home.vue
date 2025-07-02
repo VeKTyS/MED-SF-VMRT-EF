@@ -545,4 +545,10 @@ body, .main-layout {
 .custom-btn:hover {
   background: #1565c0;
 }
+
+.loading-time {
+  margin-top: 8px;
+  font-size: 0.95em !important;
+  color: #888;
+}
 </style>
