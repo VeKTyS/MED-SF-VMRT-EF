@@ -290,7 +290,7 @@
           "3bis": "#6EC4E8", // Bleu clair
           "4": "#CF009E",    // Magenta
           "5": "#FF7E2E",    // Orange
-          "6": "#6EC4E8",    // Turquoise
+          "6": "#00C08D",    // Vert turquoise
           "7": "#F5A2BD",    // Rose pâle
           "7bis": "#76D1EA", // Bleu turquoise
           "8": "#E19BDF",    // Violet clair
@@ -435,48 +435,30 @@
         return colors;
       },
     },
-    methods: {  
+    methods: {
       async fetchJourney() {
         this.isLoading = true;
-        console.log("Fetching journey from", this.startStation, "to", this.endStation);
-        if (!this.startStation || !this.endStation || this.startStation.id === this.endStation.id) return;
-
         try {
+          if (!this.startStation || !this.endStation || this.startStation.id === this.endStation.id) return;
           const fromId = encodeURIComponent(this.startStation.id);
           const toId = encodeURIComponent(this.endStation.id);
-
           const res = await fetch(`${this.apiBase}/journey?from=${fromId}&to=${toId}`);
-
-          if (!res.ok) {
-            const errorData = await res.json();
-            throw new Error(errorData.error || `HTTP error! status: ${res.status}`);
-          }
-
+          if (!res.ok) throw new Error((await res.json()).error || `HTTP error! status: ${res.status}`);
           const data = await res.json();
-
-          if (!data.path || !Array.isArray(data.path) || data.path.length === 0) {
-            this.roadmap = [];
-            this.routeCoords = [];
-            this.totalDistance = 0;
-            this.isLoading = false;
-            alert("No valid path found between the selected stations.");
-            return;
-          }
-
+          if (!data.path?.length) throw new Error("No valid path found between the selected stations.");
           this.roadmap = data.path.map(st => ({ id: st.id, name: st.name, cumulativeDistance: st.distance }));
           this.routeCoords = data.path.map(st => this.pospointsMap[st.id]).filter(Boolean).map(st => [st.lat, st.lon]);
           this.totalDistance = data.totalDistance || 0;
-          this.isLoading = false;
         } catch (error) {
           console.error("Failed to fetch journey:", error);
           this.roadmap = [];
           this.routeCoords = [];
           this.totalDistance = 0;
-          this.isLoading = false;
           alert(`Error finding journey: ${error.message}`);
+        } finally {
+          this.isLoading = false;
         }
       },
-
 
       async drawKruskal() {
         this.isLoading = true;
@@ -484,29 +466,25 @@
         this.mstEdges = [];
         this.animatedMstEdges = [];
         this.mstRoadmap = [];
-        const res = await fetch(`${this.apiBase}/kruskal`);
-        const data = await res.json();
-
-        if (!data.edges || !Array.isArray(data.edges)) {
+        try {
+          const res = await fetch(`${this.apiBase}/kruskal`);
+          const data = await res.json();
+          if (!data.edges?.length) return;
+          this.mstRoadmap = data.edges.map(e => ({ from: e.from, to: e.to, weight: e.weight }));
+          this.mstInfo.totalWeight = data.edges.reduce((sum, edge) => sum + edge.weight, 0);
+          this.mstEdges = data.edges.map(edge => {
+            const from = this.pospointsMap[edge.fromId];
+            const to = this.pospointsMap[edge.toId];
+            return from && to ? [[from.lat, from.lon], [to.lat, to.lon]] : null;
+          }).filter(Boolean);
+          this.animatedMstEdges = [];
+          this.animateKruskal();
+        } finally {
           this.isLoading = false;
-          return;
         }
-
-        this.mstRoadmap = data.edges.map(e => ({ from: e.from, to: e.to, weight: e.weight }));
-        this.mstInfo.totalWeight = data.edges.reduce((sum, edge) => sum + edge.weight, 0);
-
-        // Prépare les segments pour l'animation
-        this.mstEdges = data.edges.map(edge => {
-          const from = this.pospointsMap[edge.fromId];
-          const to = this.pospointsMap[edge.toId];
-          return from && to ? [[from.lat, from.lon], [to.lat, to.lon]] : null;
-        }).filter(Boolean);
-        this.animatedMstEdges = [];
-        this.animateKruskal();
-        this.isLoading = false;
       },
+
       animateKruskal() {
-        // Animation très rapide et fluide
         this.animatedMstEdges = [];
         let i = 0;
         const total = this.mstEdges.length;
@@ -514,18 +492,14 @@
           if (i < total) {
             this.animatedMstEdges.push(this.mstEdges[i]);
             i++;
-            // Utilise requestAnimationFrame pour la fluidité, mais saute quelques frames pour aller vite
-            if (i < total) {
-              setTimeout(step, 15); // 15ms par arête, ajustable pour la vitesse
-            }
+            if (i < total) setTimeout(step, 15);
           }
         };
         step();
       },
-      // Récupère l'arbre BFS de connexité
+
       async fetchConnexite() {
         this.isLoading = true;
-        console.log("Fetching connexite BFS tree");
         this.bfsEdges = [];
         this.bfsRoadmap = [];
         this.connexeStatus = null;
@@ -549,9 +523,11 @@
           this.isLoading = false;
         }
       },
+
       forbiddenWords() {
         return ["rue", "entrée", "Entrée", "r.", "avenue", "boulevard", 'bd', "place", "impasse", "allée", "chemin", "quai", "square", "voie"];
       },
+
       filterStartSuggestions() {
         const input = this.startInput.trim().toLowerCase();
         const forbidden = this.forbiddenWords();
@@ -560,14 +536,13 @@
           this.showStartSuggestions = false;
           return;
         }
-        // 1. Filter all matching stations
         let suggestions = this.stationList.filter(st =>
           st.id &&
           st.name.toLowerCase().includes(input) &&
           !forbidden.some(word => st.name.toLowerCase().includes(word)) &&
           (!this.endStation || st.id !== this.endStation.id)
         );
-        // 2. Group RER stations by name
+        // Regroupement RER
         const rerPattern = /^[A-E]$/;
         const rerGroups = {};
         const metroSuggestions = [];
@@ -576,7 +551,6 @@
           if (isRER) {
             if (!rerGroups[st.name]) rerGroups[st.name] = { ...st, lineNumbers: [] };
             rerGroups[st.name].lineNumbers = Array.from(new Set([...rerGroups[st.name].lineNumbers, ...st.lineNumbers]));
-            // Keep the first ID for the group
           } else {
             metroSuggestions.push({ ...st, label: st.name });
           }
@@ -617,7 +591,6 @@
       },
 
       selectStartSuggestion(suggestion) {
-        console.log("Selected start suggestion:", suggestion);
         this.startInput = suggestion.name;
         this.startStation = suggestion;
         this.filteredStartSuggestions = [];
@@ -625,13 +598,11 @@
       },
 
       selectEndSuggestion(suggestion) {
-        console.log("Selected end suggestion:", suggestion);
         this.endInput = suggestion.name;
-        this.endStation = suggestion; 
+        this.endStation = suggestion;
         this.filteredEndSuggestions = [];
         this.showEndSuggestions = false;
       },
-
 
       hideStartSuggestions() {
         setTimeout(() => { this.showStartSuggestions = false; }, 100);
@@ -641,18 +612,20 @@
         setTimeout(() => { this.showEndSuggestions = false; }, 100);
       },
 
-      getStationColor(station, roadmap) {
+      getStationColor(station) {
         const st = this.stationsMap[station.id] || {};
         if (st.lineNumbers && st.lineNumbers.length) {
           return this.lineColors[st.lineNumbers[0]] || "#FFD600";
         }
         return "#FFD600";
       },
+
       formatDistance(distance) {
         if (distance === undefined || distance === null) return "";
         const km = distance / 1000;
         return km >= 1 ? `${km.toFixed(1)} km` : `${distance} m`;
       },
+
       getLineType(station) {
         if (!station.lineNumbers || !station.lineNumbers.length) return '';
         const line = station.lineNumbers[0];
@@ -662,12 +635,11 @@
         if (/BUS/i.test(line)) return 'Bus';
         return '';
       },
+
       getMetroIcon(station) {
-        // Récupère la couleur de la ligne principale
         const color = (station.lineNumbers && station.lineNumbers.length)
           ? this.lineColors[station.lineNumbers[0]] || "#FFD600"
           : "#FFD600";
-        // SVG cercle plein
         const svg = `
           <svg width="28" height="28" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
             <circle cx="14" cy="14" r="10" fill="${color}" stroke="#232733" stroke-width="4"/>
@@ -681,8 +653,8 @@
           popupAnchor: [0, -14]
         });
       },
+
       getMetroIconWithColor(station, color) {
-        // Use the provided color for the marker
         const svg = `
           <svg width="28" height="28" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
             <circle cx="14" cy="14" r="10" fill="${color}" stroke="#232733" stroke-width="4"/>
@@ -702,7 +674,6 @@
         const segments = [];
         let startIdx = 0;
         let currentLine = this.getMainLine(roadmap[0]);
-
         for (let i = 1; i < roadmap.length; i++) {
           const line = this.getMainLine(roadmap[i]);
           if (line !== currentLine) {
@@ -714,11 +685,10 @@
               toId: roadmap[i - 1].id,
               count: i - startIdx
             });
-            startIdx = i - 1;
+            startIdx = i; // Correction ici pour éviter les doublons de stations
             currentLine = line;
           }
         }
-        // Dernier segment
         segments.push({
           line: currentLine,
           from: roadmap[startIdx].name,
@@ -730,11 +700,10 @@
         return segments;
       },
 
-      // Helper pour récupérer la ligne principale d'une station
       getMainLine(station) {
-        // Adapte selon ta structure de données
-        return station.lineNumber && station.lineNumber.length ? station.lineNumber[0] : null;
+        return station.lineNumbers && station.lineNumbers.length ? station.lineNumbers[0] : null;
       },
+
       formatTime(seconds) {
         if (!seconds || isNaN(seconds)) return '00:00:00';
         const h = Math.floor(seconds / 3600);

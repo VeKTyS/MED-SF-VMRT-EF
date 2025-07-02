@@ -11,12 +11,8 @@ function createGraph(stations, links) {
 
   // Add all links (trips and pathways)
   links.forEach(link => {
-    let weight = 1;
-    if (link.weight !== undefined && link.weight > 0) {
-      weight = link.weight;
-    } else if (link.traveling_time_in_sec !== undefined && link.traveling_time_in_sec > 0) {
-      weight = link.traveling_time_in_sec;
-    }
+    let weight = link.weight > 0 ? link.weight
+      : (link.traveling_time_in_sec > 0 ? link.traveling_time_in_sec : 1);
     if (graph[link.from] && graph[link.to]) {
       graph[link.from].neighbors.push({
         id: link.to,
@@ -34,14 +30,13 @@ function createGraph(stations, links) {
 function Djikstra(graph, startId, endId = null) {
   const distances = {};
   const previous = {};
-  const queue = new Set();
+  const queue = new Set(Object.keys(graph));
 
   // Initialize distances and queue
-  for (const id in graph) {
+  Object.keys(graph).forEach(id => {
     distances[id] = Infinity;
     previous[id] = null;
-    queue.add(id);
-  }
+  });
   distances[startId] = 0;
 
   while (queue.size > 0) {
@@ -76,7 +71,7 @@ function Djikstra(graph, startId, endId = null) {
       path.unshift({
         id: current,
         name: graph[current]?.name || null,
-        distance : distances[current]
+        distance: distances[current]
       });
       current = previous[current];
     }
@@ -196,7 +191,7 @@ function connexite(graph){
   while (queue.length) {
     const current = queue.shift();
     visited.add(current);
-    const neighbors = (graph[current].neighbors) || [];
+    const neighbors = graph[current].neighbors || [];
     for (const neighbor of neighbors) {
       const id = neighbor.id;
       if (!visited.has(id)) {
@@ -209,12 +204,10 @@ function connexite(graph){
 }
 
 // Ajout d'une fonction BFS pour générer un arbre couvrant basé sur la connexité
-function bfsTree(graph, startId = null) {
+function bfsTree(graph) {
   const ids = Object.keys(graph);
   const visited = new Set();
   const tree = [];
-
-  // Parcours BFS multi-composantes pour couvrir tout le graphe
   ids.forEach(seed => {
     if (!visited.has(seed)) {
       visited.add(seed);
