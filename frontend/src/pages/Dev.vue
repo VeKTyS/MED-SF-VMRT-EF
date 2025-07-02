@@ -94,11 +94,14 @@
           </div>
           <button
             class="dev-search-btn"
-            @click="fetchJourney"
+            @click="fetchJourneyWithTiming"
             :disabled="isLoading || !startStation || !endStation || startStation === endStation"
           >
             Rechercher
           </button>
+          <div v-if="lastJourneyLoadTime !== null" style="margin-top: 8px; font-size: 0.95em; color: #888;">
+            Temps de chargement : {{ lastJourneyLoadTime.toFixed(0) }} ms
+          </div>
         </div>
         <div v-if="mode === 'mst'" class="mst-controls">
           <button class="dev-search-btn" @click="drawKruskal" :disabled="isLoading">Afficher Kruskal</button>
@@ -307,7 +310,8 @@
           "E": "#C48C31"     // RER E - Violet/Brun
         },
         stationsMap: {}, // for fast lookup of station info by name or id
-        isLoading: false // indicate loading state for journey or MST
+        isLoading: false, // indicate loading state for journey or MST
+        lastJourneyLoadTime: null
       };
     },
     async mounted() {
@@ -458,6 +462,16 @@
         } finally {
           this.isLoading = false;
         }
+      },
+
+      async fetchJourneyWithTiming() {
+        const start = performance.now();
+        await this.fetchJourney();
+        const end = performance.now();
+        const durationMs = end - start;
+        console.log(`Temps de chargement du trajet : ${durationMs.toFixed(0)} ms`);
+        // Tu peux aussi afficher ce temps dans l'UI si tu veux
+        this.lastJourneyLoadTime = durationMs;
       },
 
       async drawKruskal() {
@@ -715,34 +729,5 @@
   };
 </script>
 
-
-<style scoped>
-.loading-indicator {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(255, 255, 255, 0.8);
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  z-index: 2000;
-}
-
-.spinner {
-  width: 40px;
-  height: 40px;
-  border: 4px solid rgba(0, 123, 255, 0.3);
-  border-top: 4px solid rgba(0, 123, 255, 1);
-  border-radius: 50%;
-  animation: spin 0.6s linear infinite;
-}
-
-@keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
-}
-</style>
 
 

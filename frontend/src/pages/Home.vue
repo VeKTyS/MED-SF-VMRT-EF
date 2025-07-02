@@ -416,6 +416,33 @@ body, .main-layout {
   background: rgba(255, 255, 255, 0.2);
 }
 
+.loading-indicator {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(255, 255, 255, 0.8);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 2000;
+}
+
+.spinner {
+  width: 40px;
+  height: 40px;
+  border: 4px solid rgba(0, 123, 255, 0.3);
+  border-top: 4px solid rgba(0, 123, 255, 1);
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
 .dev-search-btn {
   width: 100%;
   padding: 12px;
