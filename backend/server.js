@@ -2,16 +2,19 @@ const express = require('express');
 const cors = require('cors');
 const conn = require('./V2/config');
 const bodyParser = require('body-parser');
+const apicache = require('apicache');
 require('dotenv').config();
 const { createGraph, Djikstra, kruskal_acpm, connexite, bfsTree, getConnectedComponents } = require('./algorithms/graph');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+const cache = apicache.middleware;
 
 app.use(cors());
 app.use(express.json());
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: false }));
+app.use('/api', cache('5 minutes'));
 
 function timeToSeconds(t) {
   if (!t) return 0;
@@ -226,33 +229,17 @@ app.get('/api/journey', (req, res) => {
   if (!fromStation || !toStation) {
     return res.status(404).json({ error: 'One or both station IDs could not be found.' });
   }
-  const result = Djikstra(graph, fromStation.id);
-  if (!result.distances[toStation.id] || result.distances[toStation.id] === Infinity) {
+  // Utilise Dijkstra avec early exit (endId)
+  const result = Djikstra(graph, fromStation.id, toStation.id);
+  if (!result || !result.path || !result.path.length || result.totalDistance === Infinity) {
     return res.status(404).json({ error: 'No valid path found between the specified stations.' });
   }
-  let path = [];
-  let currentStationId = toStation.id;
-  while (currentStationId) {
-    const station = stations.find(station => station.id === currentStationId);
-    if (!station) break;
-    path.unshift({
-      id: station.id,
-      name: station.name,
-      lineNumbers: station.lineNumbers,
-      distance: result.distances[currentStationId]
-    });
-    currentStationId = result.previous[currentStationId];
-  }
-  const validStationIds = new Set(station_shown.map(st => st.id));
-  path = path.filter(st => validStationIds.has(st.id));
-  if (path.length === 0 || path[0].id !== fromStation.id) {
-    return res.status(400).json({ error: 'No valid path found' });
-  }
+  // On ne filtre plus le chemin, car le graphe contient déjà les bonnes stations
   res.json({
     from: fromStation,
     to: toStation,
-    path,
-    totalDistance: result.distances[toStation.id]
+    path: result.path.map(st => ({ id: st.id, name: st.name, lineNumbers: (stations.find(s => s.id === st.id) || {}).lineNumbers, distance: st.distance })),
+    totalDistance: result.totalDistance
   });
 });
 
