@@ -44,12 +44,13 @@ async function loadPosPointsFromDB() {
 async function loadMetroDataFromDB() {
   try {
     console.log('🔄 Chargement des données GTFS...');
-    const [stopsResults, tripsResults, stopTimesResults, routesResults, pathwaysResults] = await Promise.all([
+    const [stopsResults, tripsResults, stopTimesResults, routesResults, pathwaysResults, transfersResults] = await Promise.all([
       queryDB('SELECT stop_id, stop_name, stop_lat, stop_lon FROM stops'),
       queryDB('SELECT trip_id, route_id FROM trips'),
       queryDB('SELECT trip_id, arrival_time, departure_time, stop_id, stop_sequence FROM stop_times'),
       queryDB('SELECT route_id, route_short_name, route_long_name, route_type FROM routes'),
-      queryDB('SELECT pathway_id, from_stop_id, to_stop_id, pathway_mode, is_bidirectional, length, traversal_time FROM pathways')
+      queryDB('SELECT pathway_id, from_stop_id, to_stop_id, pathway_mode, is_bidirectional, length, traversal_time FROM pathways'),
+      queryDB('SELECT from_stop_id, to_stop_id, transfer_type, min_transfer_time FROM transfers')
     ]);
 
     // Indexes
@@ -141,6 +142,33 @@ async function loadMetroDataFromDB() {
           traversal_time: pathway.traversal_time ? parseInt(pathway.traversal_time, 10) : null,
           weight,
           type: 'pathway'
+        });
+      }
+    });
+    // Ajout des correspondances (transfers) comme liens
+    transfersResults.forEach(transfer => {
+      // min_transfer_time en secondes si dispo, sinon 60s par défaut
+      let weight = 60;
+      if (transfer.min_transfer_time && !isNaN(transfer.min_transfer_time)) {
+        weight = parseInt(transfer.min_transfer_time, 10);
+      }
+      links.push({
+        from: transfer.from_stop_id,
+        to: transfer.to_stop_id,
+        weight,
+        type: 'transfer',
+        transfer_type: transfer.transfer_type,
+        min_transfer_time: transfer.min_transfer_time ? parseInt(transfer.min_transfer_time, 10) : null
+      });
+      // Si bidirectionnel (optionnel, GTFS n'impose pas, mais souvent pertinent)
+      if (transfer.from_stop_id !== transfer.to_stop_id) {
+        links.push({
+          from: transfer.to_stop_id,
+          to: transfer.from_stop_id,
+          weight,
+          type: 'transfer',
+          transfer_type: transfer.transfer_type,
+          min_transfer_time: transfer.min_transfer_time ? parseInt(transfer.min_transfer_time, 10) : null
         });
       }
     });
