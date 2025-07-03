@@ -444,7 +444,7 @@
     },
     computed: {
       formattedTime() {
-        // Calcule le temps total réel entre le départ et l'arrivée (en utilisant les horaires GTFS)
+        // Calcule le temps total réel entre l'heure de départ choisie et l'arrivée (en utilisant les horaires GTFS)
         if (!this.roadmap.length) return '';
         const parseSec = t => {
           if (typeof t === 'string' && t.includes(':')) {
@@ -453,7 +453,14 @@
           } else if (!isNaN(t)) return Number(t);
           return 0;
         };
-        const start = this.roadmap[0].arrival_time ? parseSec(this.roadmap[0].arrival_time) : null;
+        // Utiliser l'heure de départ choisie si disponible
+        let start = null;
+        if (this.departureTime && typeof this.departureTime === 'string' && this.departureTime.includes(':')) {
+          const [h, m] = this.departureTime.split(':').map(Number);
+          start = h * 3600 + m * 60;
+        } else if (this.roadmap[0].arrival_time) {
+          start = parseSec(this.roadmap[0].arrival_time);
+        }
         const end = this.roadmap[this.roadmap.length-1].arrival_time ? parseSec(this.roadmap[this.roadmap.length-1].arrival_time) : null;
         if (start === null || end === null) return '';
         let total = end - start;
@@ -549,7 +556,7 @@
               title: `Correspondance à <b>${curr.name}</b>`,
               station: curr.name,
               desc: waitDesc,
-              time: curr.arrival_time ? this.formatHour(curr.arrival_time) : '',
+              time: this.formatHour(curr.arrival_time),
               isCorrespondance: true
             });
           }
