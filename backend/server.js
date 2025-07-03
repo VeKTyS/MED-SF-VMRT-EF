@@ -50,7 +50,9 @@ async function loadMetroDataFromDB() {
       queryDB('SELECT trip_id, arrival_time, departure_time, stop_id, stop_sequence FROM stop_times'),
       queryDB('SELECT route_id, route_short_name, route_long_name, route_type FROM routes'),
       queryDB('SELECT pathway_id, from_stop_id, to_stop_id, pathway_mode, is_bidirectional, length, traversal_time FROM pathways'),
-      queryDB('SELECT from_stop_id, to_stop_id, transfer_type, min_transfer_time FROM transfers')
+      queryDB('SELECT from_stop_id, to_stop_id, transfer_type, min_transfer_time FROM transfers'),
+      queryDB('SELECT service_id, monday, tuesday, wednesday, thursday, friday, saturday, sunday, start_date, end_date FROM calendar'),
+      queryDB('SELECT service_id, date, exception_type FROM calendar_dates')
     ]);
 
     // Indexes
@@ -257,8 +259,8 @@ app.get('/api/djikstra', (req, res) => {
   res.json(result);
 });
 
-app.get('/api/journey', (req, res) => {
-  const { from, to, departure_time } = req.query;
+app.get('/api/journey', async (req, res) => {
+  const { from, to, departure_time, date } = req.query;
   if (!from || !to) {
     return res.status(400).json({ error: "'from' and 'to' station IDs are required" });
   }
@@ -267,6 +269,26 @@ app.get('/api/journey', (req, res) => {
   if (!fromStation || !toStation) {
     return res.status(404).json({ error: 'One or both station IDs could not be found.' });
   }
+
+  // --- Filtrage des services actifs selon la date ---
+  let activeServiceIds = null;
+  if (date) {
+    // date attendue au format YYYY-MM-DD
+    const inputDate = new Date(date);
+    if (!isNaN(inputDate)) {
+      const yyyy = inputDate.getFullYear();
+      const mm = String(inputDate.getMonth() + 1).padStart(2, '0');
+      const dd = String(inputDate.getDate()).padStart(2, '0');
+      const yyyymmdd = `${yyyy}${mm}${dd}`;
+      const dayOfWeek = ['sunday','monday','tuesday','wednesday','thursday','friday','saturday'][inputDate.getDay()];
+      // Charger la table calendar
+      const calendarResults = await queryDB('SELECT service_id, monday, tuesday, wednesday, thursday, friday, saturday, sunday, start_date, end_date FROM calendar');
+      activeServiceIds = calendarResults.filter(row => {
+        return row[dayOfWeek] === 1 && yyyymmdd >= row.start_date && yyyymmdd <= row.end_date;
+      }).map(row => row.service_id);
+    }
+  }
+
   // Utilise Dijkstra avec early exit (endId)
   const result = Djikstra(graph, fromStation.id, toStation.id);
   if (!result || !result.path || !result.path.length || result.totalDistance === Infinity) {
@@ -284,24 +306,29 @@ app.get('/api/journey', (req, res) => {
     const prev = i > 0 ? result.path[i-1] : null;
     let arrival_time = null, departure_time_step = null, trip_id = null, route_id = null;
     if (prev) {
-      const possibleLinks = links.filter(l => l.from === prev.id && l.to === st.id);
+      let possibleLinks = links.filter(l => l.from === prev.id && l.to === st.id);
+      // Filtrer les trips selon les services actifs
+      if (activeServiceIds) {
+        possibleLinks = possibleLinks.filter(l => {
+          if (l.type === 'trip' && l.service_id) {
+            return activeServiceIds.includes(l.service_id);
+          }
+          return true; // pathways/transfers non filtrés
+        });
+      }
       let bestLink = null;
       if (possibleLinks.length) {
         if (currentTime && possibleLinks.some(l => l.type === 'trip')) {
-          // On prend le trip dont l'heure de départ est >= currentTime ET le plus proche
           const tripLinks = possibleLinks.filter(l => l.type === 'trip' && l.departure);
-          // Filtrer et trier les trips valides
           const validTrips = tripLinks.filter(l => timeToSeconds(l.departure) >= currentTime)
             .sort((a, b) => timeToSeconds(a.departure) - timeToSeconds(b.departure));
           if (validTrips.length > 0) {
             bestLink = validTrips[0];
-            // Sécurité : ne jamais prendre un trip dont l'attente dépasse 4h (14400s)
             const waitTime = timeToSeconds(bestLink.departure) - currentTime;
             if (waitTime > 4 * 3600) {
               noService = true;
             }
           } else {
-            // Aucun trip après l'heure courante : on arrête le calcul
             noService = true;
           }
         } else {
@@ -325,10 +352,8 @@ app.get('/api/journey', (req, res) => {
       }
     }
     if (trip_id) {
-      // Utiliser tripsResults global
       const trip = tripsResults && tripsResults.length ? tripsResults.find(tr => tr.trip_id === trip_id) : links.find(l => l.trip_id === trip_id);
       if (trip && trip.route_id) route_id = trip.route_id;
-      // Ajout de la direction (headsign)
       var trip_headsign = trip && trip.trip_headsign ? trip.trip_headsign : null;
     }
     enrichedPath.push({
