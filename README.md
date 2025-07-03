@@ -75,9 +75,9 @@ La solution devra garantir la **sécurité des données utilisateurs** tout en �
 | Version              | Spécificités attendues                                    | Statut
 |----------------------|-----------------------------------------------------------|--------------------------
 | Version 1            | Fonctions de base                                         | FAIT (20/06/2025)
-| Version 2            | Intégration du réseau 2024                                | EN COURS
-| Version 3            | Respect des horaires, correspondances                     | EN ATTENTE
-| Version 3 + Bonus    | RER, heure d’arrivée, accessibilité                       | EN ATTENTE
+| Version 2            | Intégration du réseau 2024                                | FAIT (25/06/2025)
+| Version 3            | Respect des horaires, correspondances                     | EN COURS
+| Version 3 + Bonus    | RER, heure d’arrivée, accessibilité                       | RER FAIT, LE RESTE EN COURS
 
 ## 🌱 Impact Environnemental
 
