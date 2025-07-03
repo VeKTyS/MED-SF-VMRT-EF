@@ -92,6 +92,15 @@
               </li>
             </ul>
           </div>
+          <div class="autocomplete-group">
+            <label>Heure de départ :</label>
+            <input
+              type="time"
+              v-model="departureTime"
+              step="60"
+              style="width:140px;"
+            />
+          </div>
           <button
             class="dev-search-btn"
             @click="fetchJourneyWithTiming"
@@ -355,10 +364,14 @@
           "E": "#C48C31"     // RER E - Violet/Brun
         },
         stationsMap: {}, // for fast lookup of station info by name or id
+        tripsMap: {}, // trip_id -> trip object
+        stopsMap: {}, // stop_id -> stop object
+        routesMap: {}, // route_id -> route object
         isLoading: false, // indicate loading state for journey or MST
         lastJourneyLoadTime: null,
         mstLoadTime: null,
-        connexiteLoadTime: null
+        connexiteLoadTime: null,
+        departureTime: '', // Heure de départ choisie par l'utilisateur (format HH:MM)
       };
     },
     async mounted() {
@@ -395,6 +408,17 @@
           return a && b ? [[a.lat, a.lon], [b.lat, b.lon]] : null;
         })
         .filter(Boolean);
+
+      // Chargement des trips, stops et routes pour la direction réelle
+      const tripsArr = await fetch(`${this.apiBase}/trips`).then(r => r.json()).catch(() => []);
+      this.tripsMap = {};
+      tripsArr.forEach(tr => { this.tripsMap[tr.trip_id] = tr; });
+      const stopsArr = await fetch(`${this.apiBase}/stops`).then(r => r.json()).catch(() => []);
+      this.stopsMap = {};
+      stopsArr.forEach(st => { this.stopsMap[st.stop_id] = st; });
+      const routesArr = await fetch(`${this.apiBase}/routes`).then(r => r.json()).catch(() => []);
+      this.routesMap = {};
+      routesArr.forEach(rt => { this.routesMap[rt.route_id] = rt; });
     },
     watch: {
       mode(newMode) {
@@ -415,7 +439,20 @@
     },
     computed: {
       formattedTime() {
-        const total = Math.round(this.totalDistance);
+        // Calcule le temps total réel entre le départ et l'arrivée (en utilisant les horaires GTFS)
+        if (!this.roadmap.length) return '';
+        const parseSec = t => {
+          if (typeof t === 'string' && t.includes(':')) {
+            const [h, m, s] = t.split(':').map(Number);
+            return h * 3600 + m * 60 + (s || 0);
+          } else if (!isNaN(t)) return Number(t);
+          return 0;
+        };
+        const start = this.roadmap[0].arrival_time ? parseSec(this.roadmap[0].arrival_time) : null;
+        const end = this.roadmap[this.roadmap.length-1].arrival_time ? parseSec(this.roadmap[this.roadmap.length-1].arrival_time) : null;
+        if (start === null || end === null) return '';
+        let total = end - start;
+        if (total < 0) total += 24*3600; // gestion passage minuit
         const hours = Math.floor(total / 3600);
         const minutes = Math.floor((total % 3600) / 60);
         return `${hours > 0 ? hours + 'h ' : ''}${minutes} min`;
@@ -459,6 +496,10 @@
           }
           if (!line) line = (currStation.lineNumbers && currStation.lineNumbers.length) ? currStation.lineNumbers[0] : '';
           const type = (/^\d+$/.test(line) ? 'Métro' : /^[A-E]$/.test(line) ? 'RER' : /BUS/i.test(line) ? 'Bus' : '');
+          // Détection de correspondance : changement de ligne ou type
+          const prevLine = (prevStation.lineNumbers && prevStation.lineNumbers.length) ? prevStation.lineNumbers[0] : '';
+          const prevType = (/^\d+$/.test(prevLine) ? 'Métro' : /^[A-E]$/.test(prevLine) ? 'RER' : /BUS/i.test(prevLine) ? 'Bus' : '');
+          const isCorrespondance = (line !== prevLine || type !== prevType);
           if (type === 'Métro' || type === 'RER' || type === 'Bus') {
             steps.push({
               icon: getIcon(type.toLowerCase(), line, this.lineColors),
@@ -472,11 +513,33 @@
             });
           } else {
             // Correspondance ou marche
+            // Calcul du temps d'attente si possible
+            let waitDesc = null;
+            if (curr.arrival_time && curr.departure_time) {
+              // Les deux sont des strings HH:MM:SS ou en secondes
+              let arr = curr.arrival_time, dep = curr.departure_time;
+              let arrSec = 0, depSec = 0;
+              if (typeof arr === 'string' && arr.includes(':')) {
+                const [h, m, s] = arr.split(':').map(Number);
+                arrSec = h * 3600 + m * 60 + (s || 0);
+              } else if (!isNaN(arr)) arrSec = Number(arr);
+              if (typeof dep === 'string' && dep.includes(':')) {
+                const [h, m, s] = dep.split(':').map(Number);
+                depSec = h * 3600 + m * 60 + (s || 0);
+              } else if (!isNaN(dep)) depSec = Number(dep);
+              let wait = depSec - arrSec;
+              if (wait < 0) wait += 24 * 3600; // gestion passage minuit
+              if (wait > 0 && wait < 3600) {
+                waitDesc = `⏳ Attente : ${Math.floor(wait/60)} min`;
+              } else if (wait >= 3600) {
+                waitDesc = `⏳ Attente : ${Math.floor(wait/3600)}h${Math.floor((wait%3600)/60).toString().padStart(2,'0')}`;
+              }
+            }
             steps.push({
               icon: getIcon('walk', null, this.lineColors),
               iconStyle: 'font-size:1.3em;',
               title: `Correspondance à <b>${curr.name}</b>`,
-              desc: null,
+              desc: waitDesc,
               time: curr.arrival_time ? this.formatHour(curr.arrival_time) : '',
               isCorrespondance: true
             });
@@ -559,7 +622,11 @@
           if (!this.startStation || !this.endStation || this.startStation.id === this.endStation.id) return;
           const fromId = encodeURIComponent(this.startStation.id);
           const toId = encodeURIComponent(this.endStation.id);
-          const res = await fetch(`${this.apiBase}/journey?from=${fromId}&to=${toId}`);
+          let url = `${this.apiBase}/journey?from=${fromId}&to=${toId}`;
+          if (this.departureTime) {
+            url += `&departure_time=${encodeURIComponent(this.departureTime)}`;
+          }
+          const res = await fetch(url);
           if (!res.ok) throw new Error((await res.json()).error || `HTTP error! status: ${res.status}`);
           const data = await res.json();
           if (!data.path?.length) throw new Error("No valid path found between the selected stations.");
@@ -860,25 +927,40 @@
         if (!seconds || isNaN(seconds)) return '00:00:00';
         const h = Math.floor(seconds / 3600);
         const m = Math.floor((seconds % 3600) / 60);
-        const s = Math.floor(seconds % 60);
         return [h, m, s].map(v => v.toString().padStart(2, '0')).join(':');
       },
 
       formatHour(secOrStr) {
         if (!secOrStr) return '';
+        // Si c'est un nombre (secondes)
         if (typeof secOrStr === 'number') {
-          const h = Math.floor(secOrStr / 3600);
-          const m = Math.floor((secOrStr % 3600) / 60);
+          let h = Math.floor(secOrStr / 3600);
+          let m = Math.floor((secOrStr % 3600) / 60);
+          h = h % 24; // Boucle sur 24h
           return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
         }
+        // Si c'est une string HH:MM:SS ou HH:MM
         if (typeof secOrStr === 'string' && secOrStr.includes(':')) {
-          return secOrStr.slice(0,5);
+          const parts = secOrStr.split(':').map(Number);
+          let h = parts[0], m = parts[1];
+          if (isNaN(h) || isNaN(m)) return secOrStr;
+          h = h % 24; // Boucle sur 24h
+          return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
         }
         return secOrStr;
       },
 
       getDirectionName(trip_id) {
-        // Placeholder: à remplacer par la vraie direction si tu as l'info dans trips/routes
+        // Retourne le vrai nom du terminus si possible
+        if (!trip_id || !this.tripsMap[trip_id]) return 'Terminus';
+        const trip = this.tripsMap[trip_id];
+        // GTFS: trip.headsign = direction, ou stop_sequence max = terminus
+        if (trip && trip.trip_headsign) return trip.trip_headsign;
+        // Fallback: essayer de trouver le dernier stop de ce trip
+        if (trip && trip.stop_times && trip.stop_times.length) {
+          const lastStop = trip.stop_times.reduce((a, b) => (a.stop_sequence > b.stop_sequence ? a : b));
+          if (lastStop && this.stopsMap[lastStop.stop_id]) return this.stopsMap[lastStop.stop_id].stop_name;
+        }
         return 'Terminus';
       },
     }

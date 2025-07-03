@@ -248,7 +248,7 @@ app.get('/api/djikstra', (req, res) => {
 });
 
 app.get('/api/journey', (req, res) => {
-  const { from, to } = req.query;
+  const { from, to, departure_time } = req.query;
   if (!from || !to) {
     return res.status(400).json({ error: "'from' and 'to' station IDs are required" });
   }
@@ -262,11 +262,84 @@ app.get('/api/journey', (req, res) => {
   if (!result || !result.path || !result.path.length || result.totalDistance === Infinity) {
     return res.status(404).json({ error: 'No valid path found between the specified stations.' });
   }
-  // On ne filtre plus le chemin, car le graphe contient déjà les bonnes stations
+
+  // Enrichir le chemin avec les horaires GTFS si possible
+  let currentTime = departure_time && /^\d{2}:\d{2}/.test(departure_time)
+    ? timeToSeconds(departure_time)
+    : null;
+  const enrichedPath = [];
+  let noService = false;
+  for (let i = 0; i < result.path.length; i++) {
+    const st = result.path[i];
+    const prev = i > 0 ? result.path[i-1] : null;
+    let arrival_time = null, departure_time_step = null, trip_id = null, route_id = null;
+    if (prev) {
+      const possibleLinks = links.filter(l => l.from === prev.id && l.to === st.id);
+      let bestLink = null;
+      if (possibleLinks.length) {
+        if (currentTime && possibleLinks.some(l => l.type === 'trip')) {
+          // On prend le trip dont l'heure de départ est >= currentTime ET le plus proche
+          const tripLinks = possibleLinks.filter(l => l.type === 'trip' && l.departure);
+          // Filtrer et trier les trips valides
+          const validTrips = tripLinks.filter(l => timeToSeconds(l.departure) >= currentTime)
+            .sort((a, b) => timeToSeconds(a.departure) - timeToSeconds(b.departure));
+          if (validTrips.length > 0) {
+            bestLink = validTrips[0];
+          } else {
+            // Aucun trip après l'heure courante : on arrête le calcul
+            noService = true;
+          }
+        } else {
+          bestLink = possibleLinks[0];
+        }
+        if (bestLink && !noService) {
+          if (bestLink.type === 'trip') {
+            arrival_time = bestLink.arrival;
+            departure_time_step = bestLink.departure;
+            trip_id = bestLink.trip_id;
+            if (bestLink.arrival) currentTime = timeToSeconds(bestLink.arrival);
+          } else if (bestLink.type === 'transfer' || bestLink.type === 'pathway') {
+            if (currentTime && bestLink.weight) {
+              arrival_time = departure_time_step = currentTime + bestLink.weight;
+              currentTime = arrival_time;
+            }
+          }
+        }
+      }
+    } else if (currentTime) {
+      departure_time_step = arrival_time = currentTime;
+    }
+    if (trip_id) {
+      const trip = links.find(l => l.trip_id === trip_id);
+      if (trip && trip.route_id) route_id = trip.route_id;
+    }
+    enrichedPath.push({
+      id: st.id,
+      name: st.name,
+      lineNumbers: (stations.find(s => s.id === st.id) || {}).lineNumbers,
+      distance: st.distance,
+      arrival_time,
+      departure_time: departure_time_step,
+      trip_id,
+      route_id
+    });
+    if (noService) break;
+  }
+
+  if (noService) {
+    return res.status(200).json({
+      from: fromStation,
+      to: toStation,
+      path: enrichedPath,
+      totalDistance: result.totalDistance,
+      warning: 'Aucun service disponible après l\'heure courante pour une ou plusieurs étapes.'
+    });
+  }
+
   res.json({
     from: fromStation,
     to: toStation,
-    path: result.path.map(st => ({ id: st.id, name: st.name, lineNumbers: (stations.find(s => s.id === st.id) || {}).lineNumbers, distance: st.distance })),
+    path: enrichedPath,
     totalDistance: result.totalDistance
   });
 });
