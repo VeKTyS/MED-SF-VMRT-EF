@@ -3,11 +3,11 @@
     <div class="center-panel">
       <div class="form-card">
         <div class="mode-switch">
-          <label>
+          <label class="custom-btn">
             <input type="radio" v-model="mode" value="route" />
             Itinéraire (Station à Station)
           </label>
-          <label>
+          <label class="custom-btn">
             <input type="radio" v-model="mode" value="mst" />
             Arbre couvrant (ACPM)
           </label>
@@ -307,7 +307,7 @@ p {
 }
 body, .main-layout {
   font-family: 'Inter', Arial, sans-serif;
-  background: linear-gradient(135deg, #232733 0%, #181c23 100%);
+  background: linear-gradient(135deg, #3a3a3a 0%, #000000 100%);
   color: #e0e6ed;
 }
 
@@ -378,7 +378,7 @@ body, .main-layout {
 
 .autocomplete-group input {
   width: 100%;
-  padding: 10px;
+  padding: 10px 0px;
   border: 1px solid #444;
   border-radius: 4px;
   background: rgba(255, 255, 255, 0.1);
