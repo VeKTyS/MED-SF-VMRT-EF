@@ -977,13 +977,20 @@
         // Retourne le vrai nom du terminus si possible
         if (!trip_id || !this.tripsMap[trip_id]) return 'Terminus';
         const trip = this.tripsMap[trip_id];
-        // GTFS: trip.headsign = direction, ou stop_sequence max = terminus
+        // 1. Utiliser trip_headsign si présent
         if (trip && trip.trip_headsign) return trip.trip_headsign;
-        // Fallback: essayer de trouver le dernier stop de ce trip
-        if (trip && trip.stop_times && trip.stop_times.length) {
+        // 2. Fallback : essayer de trouver le dernier stop de ce trip
+        if (trip && Array.isArray(trip.stop_times) && trip.stop_times.length) {
           const lastStop = trip.stop_times.reduce((a, b) => (a.stop_sequence > b.stop_sequence ? a : b));
-          if (lastStop && this.stopsMap[lastStop.stop_id]) return this.stopsMap[lastStop.stop_id].stop_name;
+          if (lastStop && this.stopsMap && this.stopsMap[lastStop.stop_id]) {
+            return this.stopsMap[lastStop.stop_id].stop_name;
+          }
         }
+        // 3. Fallback : si route_id existe, tenter de retourner le nom de la ligne
+        if (trip && trip.route_id && this.routesMap && this.routesMap[trip.route_id]) {
+          return this.routesMap[trip.route_id].route_long_name || this.routesMap[trip.route_id].route_short_name || 'Terminus';
+        }
+        // 4. Sinon
         return 'Terminus';
       },
     }
