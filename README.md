@@ -59,10 +59,6 @@ Le projet vise à développer une application capable d’**indiquer le chemin l
 - Optimisation des **ressources CPU/Mémoire** : Stockage de données en cache et usage de ressource de taille raisonnable
 - Éviter les algorithmes trop gourmands en énergie : Algorithmes (Djisktra, Prim, Kruskal) optimisées
 
-## 🔐 Sécurité
-
-La solution devra garantir la **sécurité des données utilisateurs** tout en étant performante et éco-efficace.
-
 ## 🧪 Indicateurs de Performance
 
 - **Efficience** : Temps de réponse minimal avec peu de ressources
