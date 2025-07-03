@@ -375,6 +375,11 @@
       };
     },
     async mounted() {
+      // Initialiser departureTime à l'heure actuelle (HH:MM)
+      const now = new Date();
+      const hh = now.getHours().toString().padStart(2, '0');
+      const mm = now.getMinutes().toString().padStart(2, '0');
+      this.departureTime = `${hh}:${mm}`;
 
       this.pospoints = await fetch(`${this.apiBase}/pospoints`).then(r => r.json());
       this.pospoints.forEach(p => {
