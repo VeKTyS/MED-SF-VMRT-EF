@@ -200,6 +200,32 @@
           </p>
         </div>
       </div>
+      <div v-if="mode === 'route' && roadmap.length" class="roadmap-card" style="padding:0;border-radius:12px;box-shadow:0 2px 8px #0001;max-width:420px;margin:auto;">
+        <div style="background:#184b8a;color:#fff;padding:10px 18px 6px 18px;border-radius:12px 12px 0 0;display:flex;align-items:center;justify-content:space-between;">
+          <div style="display:flex;align-items:center;gap:6px;">
+            <span v-for="(step, idx) in roadmapIcons" :key="'icon-'+idx" v-html="step.icon" :style="step.style" />
+          </div>
+          <div style="font-weight:bold;font-size:1.1em;">{{ formattedTime }}</div>
+        </div>
+        <div style="padding:18px 0 0 0;">
+          <div class="timeline">
+            <div v-for="(step, idx) in formattedRoadmap" :key="'step-'+idx" class="timeline-step" :style="step.isCorrespondance ? 'background:#f3f6fa;' : ''">
+              <div class="timeline-left">
+                <div v-html="step.icon" :style="step.iconStyle"></div>
+                <div v-if="idx < formattedRoadmap.length-1" class="timeline-line"></div>
+              </div>
+              <div class="timeline-content">
+                <div class="timeline-title">
+                  <span v-html="step.title"></span>
+                  <span v-if="step.lineLabel" :style="step.lineStyle">{{ step.lineLabel }}</span>
+                </div>
+                <div class="timeline-desc" v-if="step.desc">{{ step.desc }}</div>
+              </div>
+              <div class="timeline-time">{{ step.time }}</div>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
     <div class="map-panel">
       <l-map
@@ -258,6 +284,15 @@
 <script>
   import { LMap, LTileLayer, LMarker, LPopup, LPolyline } from "@vue-leaflet/vue-leaflet";
   import "leaflet/dist/leaflet.css";
+
+  // --- Utilitaire SVG pour icônes ---
+  function getIcon(type, line, lineColors) {
+    if (type === 'walk') return '<svg width="20" height="20" viewBox="0 0 20 20"><circle cx="10" cy="10" r="8" fill="#bbb"/><text x="10" y="15" text-anchor="middle" font-size="13" fill="#fff">🚶‍♂️</text></svg>';
+    if (type === 'metro') return `<svg width="20" height="20" viewBox="0 0 20 20"><circle cx="10" cy="10" r="8" fill="${lineColors[line]||'#FFD600'}"/><text x="10" y="15" text-anchor="middle" font-size="13" fill="#232733">M</text></svg>`;
+    if (type === 'rer') return `<svg width="20" height="20" viewBox="0 0 20 20"><circle cx="10" cy="10" r="8" fill="${lineColors[line]||'#4185C5'}"/><text x="10" y="15" text-anchor="middle" font-size="13" fill="#fff">RER</text></svg>`;
+    if (type === 'bus') return '<svg width="20" height="20" viewBox="0 0 20 20"><rect x="3" y="5" width="14" height="10" rx="3" fill="#0078d4"/><text x="10" y="15" text-anchor="middle" font-size="13" fill="#fff">BUS</text></svg>';
+    return '';
+  }
 
   export default {
     name: "Dev",
@@ -380,76 +415,96 @@
     },
     computed: {
       formattedTime() {
-
         const total = Math.round(this.totalDistance);
         const hours = Math.floor(total / 3600);
         const minutes = Math.floor((total % 3600) / 60);
-        const seconds = total % 60;
-        return [
-          hours.toString().padStart(2, '0'),
-          minutes.toString().padStart(2, '0'),
-          seconds.toString().padStart(2, '0')
-        ].join(':');
+        return `${hours > 0 ? hours + 'h ' : ''}${minutes} min`;
+      },
+      roadmapIcons() {
+        // Affiche la séquence d'icônes en haut (marche, lignes, etc.)
+        if (!this.roadmap.length) return [];
+        const icons = [];
+        icons.push({ icon: getIcon('walk', null, this.lineColors), style: 'font-size:1.2em;' });
+        for (let i = 1; i < this.roadmap.length; i++) {
+          const st = this.stationsMap[this.roadmap[i].id] || {};
+          const type = this.getLineType(st);
+          if (type === 'Métro') icons.push({ icon: getIcon('metro', this.getMainLine(st), this.lineColors), style: `color:${this.lineColors[this.getMainLine(st)]||'#FFD600'};font-size:1.2em;` });
+          else if (type === 'RER') icons.push({ icon: getIcon('rer', this.getMainLine(st), this.lineColors), style: `color:${this.lineColors[this.getMainLine(st)]||'#4185C5'};font-size:1.2em;` });
+          else if (type === 'Bus') icons.push({ icon: getIcon('bus', null, this.lineColors), style: 'color:#0078d4;font-size:1.2em;' });
+          icons.push({ icon: getIcon('walk', null, this.lineColors), style: 'font-size:1.2em;' });
+        }
+        return icons;
+      },
+      formattedRoadmap() {
+        // Génère la liste des étapes pour la timeline
+        if (!this.roadmap.length) return [];
+        const steps = [];
+        // Départ à pied
+        steps.push({
+          icon: getIcon('walk', null, this.lineColors),
+          iconStyle: 'font-size:1.3em;',
+          title: `Départ : <b>${this.roadmap[0].name}</b>`,
+          desc: null,
+          time: this.roadmap[0].arrival_time ? this.formatHour(this.roadmap[0].arrival_time) : '',
+          isCorrespondance: false
+        });
+        for (let i = 1; i < this.roadmap.length; i++) {
+          const prev = this.roadmap[i-1];
+          const curr = this.roadmap[i];
+          const st = this.stationsMap[curr.id] || {};
+          const type = this.getLineType(st);
+          if (type === 'Métro' || type === 'RER' || type === 'Bus') {
+            steps.push({
+              icon: getIcon(type.toLowerCase(), this.getMainLine(st), this.lineColors),
+              iconStyle: `font-size:1.3em;${type==='Métro'?`color:${this.lineColors[this.getMainLine(st)]||'#FFD600'};`:type==='RER'?`color:${this.lineColors[this.getMainLine(st)]||'#4185C5'};`:''}`,
+              title: `Prendre ${type} <b>${this.getMainLine(st)}</b>`,
+              lineLabel: this.getMainLine(st),
+              lineStyle: `background:${this.lineColors[this.getMainLine(st)]||'#FFD600'};color:#fff;padding:2px 8px;border-radius:8px;margin-left:8px;`,
+              desc: `Direction ${this.getDirectionName(curr.trip_id)}`,
+              time: curr.arrival_time ? this.formatHour(curr.arrival_time) : '',
+              isCorrespondance: false
+            });
+          } else {
+            // Correspondance ou marche
+            steps.push({
+              icon: getIcon('walk', null, this.lineColors),
+              iconStyle: 'font-size:1.3em;',
+              title: `Correspondance à <b>${curr.name}</b>`,
+              desc: null,
+              time: curr.arrival_time ? this.formatHour(curr.arrival_time) : '',
+              isCorrespondance: true
+            });
+          }
+        }
+        // Arrivée à pied
+        steps.push({
+          icon: getIcon('walk', null, this.lineColors),
+          iconStyle: 'font-size:1.3em;',
+          title: `Arrivée : <b>${this.roadmap[this.roadmap.length-1].name}</b>`,
+          desc: null,
+          time: this.roadmap[this.roadmap.length-1].arrival_time ? this.formatHour(this.roadmap[this.roadmap.length-1].arrival_time) : '',
+          isCorrespondance: false
+        });
+        return steps;
       },
       coloredRouteSegments() {
-        if (!this.roadmap.length) return [];
+        // Renvoie les segments du trajet avec couleur de ligne pour la carte
+        if (!this.roadmap || this.roadmap.length < 2) return [];
         const segments = [];
         for (let i = 1; i < this.roadmap.length; i++) {
-          const prev = this.roadmap[i - 1];
-          const curr = this.roadmap[i];
-          const prevPos = this.pospointsMap[prev.id];
-          const currPos = this.pospointsMap[curr.id];
-          if (prevPos && currPos) {
-            // Find common line between prev and curr
-            const prevStation = this.stationsMap[prev.id] || {};
-            const currStation = this.stationsMap[curr.id] || {};
-            let color = "#FFD600"; // Default
-            if (prevStation.lineNumbers && currStation.lineNumbers) {
-              const commonLines = prevStation.lineNumbers.filter(l => currStation.lineNumbers.includes(l));
-              if (commonLines.length > 0) {
-                color = this.lineColors[commonLines[0]] || color;
-              }
-            }
+          const from = this.pospointsMap[this.roadmap[i-1].id];
+          const to = this.pospointsMap[this.roadmap[i].id];
+          if (from && to) {
+            const st = this.stationsMap[this.roadmap[i]] || {};
+            const line = this.getMainLine(st);
             segments.push({
-              latlngs: [
-                [prevPos.lat, prevPos.lon],
-                [currPos.lat, currPos.lon]
-              ],
-              color
+              latlngs: [[from.lat, from.lon], [to.lat, to.lon]],
+              color: this.lineColors[line] || '#FFD600'
             });
           }
         }
         return segments;
-      },
-      roadmapColors() {
-        // Returns an array of colors for each station in roadmap, based on the line used to reach it
-        if (!this.roadmap.length) return [];
-        const colors = [];
-        for (let i = 0; i < this.roadmap.length; i++) {
-          if (i === 0) {
-            // First station: use its main line or default
-            const st = this.stationsMap[this.roadmap[0].id] || {};
-            let color = "#FFD600";
-            if (st.lineNumbers && st.lineNumbers.length) {
-              color = this.lineColors[st.lineNumbers[0]] || color;
-            }
-            colors.push(color);
-          } else {
-            // For other stations, use the line shared with previous
-            const prev = this.stationsMap[this.roadmap[i - 1].id] || {};
-            const curr = this.stationsMap[this.roadmap[i].id] || {};
-            let color = "#FFD600";
-            if (prev.lineNumbers && curr.lineNumbers) {
-              const commonLines = prev.lineNumbers.filter(l => curr.lineNumbers.includes(l));
-              if (commonLines.length > 0) {
-                color = this.lineColors[commonLines[0]] || color;
-              }
-            }
-            colors.push(color);
-          }
-        }
-        return colors;
-      },
+      }
     },
     methods: {
       async fetchJourney() {
@@ -743,7 +798,7 @@
       },
 
       getMainLine(station) {
-        return station.lineNumbers && station.lineNumbers.length ? station.lineNumbers[0] : null;
+        return station && station.lineNumbers && station.lineNumbers.length ? station.lineNumbers[0] : '';
       },
 
       formatTime(seconds) {
@@ -752,10 +807,322 @@
         const m = Math.floor((seconds % 3600) / 60);
         const s = Math.floor(seconds % 60);
         return [h, m, s].map(v => v.toString().padStart(2, '0')).join(':');
-      }
+      },
+
+      formatHour(secOrStr) {
+        if (!secOrStr) return '';
+        if (typeof secOrStr === 'number') {
+          const h = Math.floor(secOrStr / 3600);
+          const m = Math.floor((secOrStr % 3600) / 60);
+          return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
+        }
+        if (typeof secOrStr === 'string' && secOrStr.includes(':')) {
+          return secOrStr.slice(0,5);
+        }
+        return secOrStr;
+      },
+
+      getDirectionName(trip_id) {
+        // Placeholder: à remplacer par la vraie direction si tu as l'info dans trips/routes
+        return 'Terminus';
+      },
     }
   };
 </script>
+
+<style scoped>
+  .main-layout {
+    display: flex;
+    height: 100vh;
+    overflow: hidden;
+  }
+
+  .center-panel {
+    flex: 1;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+    position: relative;
+  }
+
+  .form-card {
+    background: #232733;
+    color: #fff;
+    border-radius: 12px;
+    padding: 16px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    margin-bottom: 16px;
+  }
+
+  .mode-switch {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 16px;
+  }
+
+  .mode-switch label {
+    cursor: pointer;
+    padding: 8px 16px;
+    border-radius: 16px;
+    transition: background 0.3s;
+    color: #fff;
+  }
+
+  .mode-switch input {
+    display: none;
+  }
+
+  .mode-switch label:hover {
+    background: #f0f0f0;
+  }
+
+  .mode-switch input:checked + label {
+    background: #353942;
+    color: #FFD600;
+  }
+
+  .route-controls,
+  .mst-controls,
+  .connexite-controls {
+    margin-top: 16px;
+  }
+
+  .autocomplete-group {
+    margin-bottom: 16px;
+  }
+
+  .autocomplete-group label {
+    display: block;
+    margin-bottom: 8px;
+    font-weight: bold;
+    color: #fff;
+  }
+
+  .autocomplete-group input {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid #444;
+    border-radius: 8px;
+    font-size: 16px;
+    background: #353942;
+    color: #fff;
+  }
+
+  .autocomplete-group input:focus {
+    border-color: #FFD600;
+    outline: none;
+    background: #232733;
+  }
+
+  .suggestions {
+    background: #353942;
+    color: #fff;
+    border: 1px solid #444;
+  }
+
+  .suggestions li {
+    padding: 10px;
+    cursor: pointer;
+    transition: background 0.3s;
+  }
+
+  .suggestions li:hover {
+    background: #232733;
+  }
+
+  .dev-search-btn {
+    background: #FFD600;
+    color: #232733;
+    padding: 10px 16px;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 16px;
+    font-weight: bold;
+    transition: background 0.3s, color 0.3s;
+  }
+
+  .dev-search-btn:hover:enabled {
+    background: #ffe066;
+    color: #232733;
+  }
+
+  .dev-search-btn:disabled {
+    background: #888;
+    color: #ccc;
+    cursor: not-allowed;
+  }
+
+  .dev-time {
+    margin-top: 16px;
+    padding: 12px;
+    background: #f8fafd;
+    border-radius: 8px;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .dev-time h4 {
+    margin: 0 0 8px 0;
+    font-size: 18px;
+    color: #184b8a;
+  }
+
+  .dev-time p {
+    margin: 0 0 8px 0;
+    color: #333;
+  }
+
+  .dev-time span {
+    font-weight: bold;
+    font-size: 1.2em;
+    color: #184b8a;
+  }
+
+  .roadmap-card {
+    background: #fff;
+    border-radius: 12px;
+    padding: 16px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    margin-bottom: 16px;
+  }
+
+  .dev-roadmap-details {
+    margin-top: 16px;
+  }
+
+  .dev-roadmap-details h4 {
+    margin: 0 0 8px 0;
+    font-size: 18px;
+    color: #184b8a;
+  }
+
+  .dev-roadmap-details ol {
+    padding-left: 20px;
+    margin: 0;
+  }
+
+  .dev-roadmap-details li {
+    margin-bottom: 8px;
+    color: #333;
+  }
+
+  .timeline {
+    position: relative;
+    padding: 10px 0;
+  }
+
+  .timeline-step {
+    position: relative;
+    padding: 10px 0;
+    display: flex;
+    align-items: center;
+  }
+
+  .timeline-left {
+    position: relative;
+    width: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .timeline-line {
+    position: absolute;
+    left: 50%;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: #e0e0e0;
+    z-index: 1;
+  }
+
+  .timeline-content {
+    padding-left: 60px;
+    flex: 1;
+  }
+
+  .timeline-title {
+    font-weight: bold;
+    color: #184b8a;
+    display: flex;
+    align-items: center;
+  }
+
+  .timeline-title span {
+    margin-left: 4px;
+    font-size: 14px;
+    color: #666;
+  }
+
+  .timeline-desc {
+    margin-top: 4px;
+    font-size: 14px;
+    color: #333;
+  }
+
+  .timeline-time {
+    margin-left: auto;
+    font-size: 14px;
+    color: #666;
+  }
+
+  /* Ajout styles pour roadmap verticale façon IDFM */
+.roadmap-card .timeline {
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  margin-left: 24px;
+}
+.timeline-step {
+  display: flex;
+  align-items: flex-start;
+  min-height: 48px;
+  position: relative;
+  padding-bottom: 8px;
+}
+.timeline-left {
+  width: 32px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  position: relative;
+}
+.timeline-line {
+  width: 2px;
+  background: #bcd;
+  flex: 1 1 auto;
+  margin: 0 auto;
+  min-height: 24px;
+}
+.timeline-content {
+  flex: 1 1 auto;
+  padding-left: 8px;
+  padding-right: 8px;
+  min-width: 120px;
+}
+.timeline-title {
+  font-weight: bold;
+  font-size: 1.05em;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.timeline-desc {
+  color: #888;
+  font-size: 0.97em;
+  margin-top: 2px;
+}
+.timeline-time {
+  min-width: 48px;
+  text-align: right;
+  font-size: 1.05em;
+  color: #184b8a;
+  font-weight: bold;
+  margin-left: 8px;
+}
+</style>
 
 
 
