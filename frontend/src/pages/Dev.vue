@@ -980,7 +980,7 @@
   }
 
   .center-panel {
-    flex: 1;
+    flex: 0 0 30%;
     padding: 16px;
     display: flex;
     flex-direction: column;
@@ -1006,6 +1006,7 @@
   .mode-switch label {
     cursor: pointer;
     padding: 8px 16px;
+    margin: 10px;
     border-radius: 16px;
     transition: background 0.3s;
     color: #fff;
@@ -1269,5 +1270,6 @@
 
 .custom-lbl{
   background-color: #3881da4d;
+  text-align: center;
 }
 </style>
