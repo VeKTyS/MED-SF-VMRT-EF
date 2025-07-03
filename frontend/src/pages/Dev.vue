@@ -6,15 +6,15 @@
     <div class="center-panel">
       <div class="form-card">
         <div class="mode-switch">
-          <label>
+          <label class="custom-lbl">
             <input type="radio" v-model="mode" value="route" />
             Itinéraire (Station à Station)
           </label>
-          <label>
+          <label class="custom-lbl">
             <input type="radio" v-model="mode" value="mst" />
             Arbre couvrant (ACPM)
           </label>
-          <label>
+          <label class="custom-lbl">
             <input type="radio" v-model="mode" value="connexite" />
             Connexité
           </label>
@@ -1012,6 +1012,7 @@
 
   .mode-switch label:hover {
     background: #f0f0f0;
+    color:black
   }
 
   .mode-switch input:checked + label {
@@ -1259,7 +1260,9 @@
   font-weight: bold;
   margin-left: 8px;
 }
+/*Ajout par maceo*/
+
+.custom-lbl{
+  background-color: #3881da4d;
+}
 </style>
-
-
-
