@@ -5,6 +5,7 @@ const bodyParser = require('body-parser');
 const apicache = require('apicache');
 require('dotenv').config();
 const { createGraph, Djikstra, kruskal_acpm, connexite, bfsTree, getConnectedComponents } = require('./algorithms/graph');
+const { calculerEmpreinteCO2 } = require('./V2/co2');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -430,6 +431,14 @@ app.get('/api/metrodata', async (req, res) => {
   } catch (err) {
     res.status(500).json({ error: 'Database error', details: err });
   }
+});
+
+// Route pour calculer l'empreinte carbone d'un trajet
+app.post('/api/co2', (req, res) => {
+  const segments = req.body.segments;
+  if (!Array.isArray(segments)) return res.status(400).json({ error: 'Segments manquants' });
+  const result = calculerEmpreinteCO2(segments);
+  res.json(result);
 });
 
 app.listen(PORT, () => {

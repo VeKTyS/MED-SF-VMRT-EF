@@ -111,6 +111,9 @@
           <div v-if="lastJourneyLoadTime !== null" style="margin-top: 8px; font-size: 0.95em; color: #888;">
             Temps de chargement : {{ lastJourneyLoadTime.toFixed(0) }} ms
           </div>
+          <div v-if="empreinteCarbone !== null" class="loading-time">
+            Empreinte carbone estimée : {{ empreinteCarbone.toFixed(1) }} gCO₂e
+          </div>
         </div>
         <div v-if="mode === 'mst'" class="mst-controls">
           <button class="dev-search-btn" @click="drawKruskalWithTiming" :disabled="isLoading">
@@ -372,6 +375,8 @@
         mstLoadTime: null,
         connexiteLoadTime: null,
         departureTime: '', // Heure de départ choisie par l'utilisateur (format HH:MM)
+        empreinteCarbone: null,
+        detailsEmpreinte: [],
       };
     },
     async mounted() {
@@ -658,6 +663,7 @@
       async fetchJourneyWithTiming() {
         const start = performance.now();
         await this.fetchJourney();
+        await this.calculerEmpreinteCarbone();
         const end = performance.now();
         const durationMs = end - start;
         console.log(`Temps de chargement du trajet : ${durationMs.toFixed(0)} ms`);
@@ -992,6 +998,53 @@
         }
         // 4. Sinon
         return 'Terminus';
+      },
+
+      async calculerEmpreinteCarbone() {
+        if (!this.roadmap || this.roadmap.length < 2) return;
+        const segments = [];
+        for (let i = 1; i < this.roadmap.length; i++) {
+          const prev = this.roadmap[i - 1];
+          const curr = this.roadmap[i];
+          const prevStation = this.stationsMap[prev.id] || {};
+          const currStation = this.stationsMap[curr.id] || {};
+          let line = null;
+          let mode = null;
+          if (prevStation.lineNumbers && currStation.lineNumbers) {
+            const commonLines = prevStation.lineNumbers.filter(l => currStation.lineNumbers.includes(l));
+            if (commonLines.length > 0) line = commonLines[0];
+          }
+          if (!line) line = (currStation.lineNumbers && currStation.lineNumbers.length) ? currStation.lineNumbers[0] : '';
+          // Déduire le mode
+          if (/^\d+$/.test(line)) mode = 'metro';
+          else if (/^[A-E]$/.test(line)) mode = 'rail';
+          else if (/^T/i.test(line)) mode = 'tram';
+          else mode = 'metro'; // fallback
+          // Calculer la distance (en km)
+          const prevPos = this.pospointsMap[prev.id];
+          const currPos = this.pospointsMap[curr.id];
+          let distance_km = 0;
+          if (prevPos && currPos) {
+            const R = 6371;
+            const dLat = (currPos.lat - prevPos.lat) * Math.PI / 180;
+            const dLon = (currPos.lon - prevPos.lon) * Math.PI / 180;
+            const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                      Math.cos(prevPos.lat * Math.PI / 180) * Math.cos(currPos.lat * Math.PI / 180) *
+                      Math.sin(dLon/2) * Math.sin(dLon/2);
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+            distance_km = R * c;
+          }
+          segments.push({ line, mode, distance_km });
+        }
+        // Appel à l'API backend
+        const res = await fetch(`${this.apiBase}/co2`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ segments })
+        });
+        const data = await res.json();
+        this.empreinteCarbone = data.total;
+        this.detailsEmpreinte = data.details;
       },
     }
   };
