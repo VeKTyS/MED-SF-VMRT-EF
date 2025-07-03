@@ -10,7 +10,7 @@
         <router-link to="/">Accueil</router-link>
       </div>
       <div class="nav-right">
-        <router-link to="/ACPM">ACPM</router-link>
+        <router-link to="/about">A propos</router-link>
       <router-link to="/dev"> Dev </router-link>
       </div>
     </nav>
