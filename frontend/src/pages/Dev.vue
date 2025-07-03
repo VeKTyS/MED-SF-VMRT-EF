@@ -167,7 +167,7 @@
             <li v-for="(segment, idx) in groupRoadmapByLine(roadmap)" :key="idx">
               <span>
                 <b style="margin-right:8px;"
-                   :style="{color: lineColors[segment.line] || '#FFD600'}">
+                   :style="{color: lineColors[segment.line] || '##1a1a1a'}">
                   Ligne {{ segment.line }}
                 </b>
                 : {{ segment.from }} → {{ segment.to }}
@@ -214,9 +214,6 @@
       </div>
       <div v-if="mode === 'route' && roadmap.length" class="roadmap-card" style="padding:0;border-radius:12px;box-shadow:0 2px 8px #0001;max-width:420px;margin:auto;">
         <div style="background:#184b8a;color:#fff;padding:10px 18px 6px 18px;border-radius:12px 12px 0 0;display:flex;align-items:center;justify-content:space-between;">
-          <div style="display:flex;align-items:center;gap:6px;">
-            <span v-for="(step, idx) in roadmapIcons" :key="'icon-'+idx" v-html="step.icon" :style="step.style" />
-          </div>
           <div style="font-weight:bold;font-size:1.1em;">{{ formattedTime }}</div>
         </div>
         <div style="padding:18px 0 0 0;">
@@ -224,7 +221,17 @@
             <div v-for="(step, idx) in formattedRoadmap" :key="'step-'+idx" class="timeline-step" :style="step.isCorrespondance ? 'background:#f3f6fa;' : ''">
               <div class="timeline-left">
                 <div v-html="step.icon" :style="step.iconStyle"></div>
-                <div v-if="idx < formattedRoadmap.length-1" class="timeline-line"></div>
+                <!-- Ligne sous l'icône, sauf pour la dernière étape -->
+                <div
+                  v-if="idx < formattedRoadmap.length - 1"
+                  class="timeline-line"
+                  :style="{
+                    top: '36px',
+                    height: 'calc(100% - 36px)',
+                    position: 'absolute',
+                    background: step.lineColor || '#383838' // Utiliser la couleur de la ligne ou une couleur par défaut
+                  }"
+                ></div>
               </div>
               <div class="timeline-content">
                 <div class="timeline-title">
@@ -299,7 +306,7 @@
 
   // --- Utilitaire SVG pour icônes ---
   function getIcon(type, line, lineColors) {
-    if (type === 'walk') return '<svg width="20" height="20" viewBox="0 0 20 20"><circle cx="10" cy="10" r="8" fill="#bbb"/><text x="10" y="15" text-anchor="middle" font-size="13" fill="#fff">🚶‍♂️</text></svg>';
+    if (type === 'walk') return '<svg width="32" height="32" viewBox="0 0 32 32"><circle cx="16" cy="16" r="14" fill="#bbb"/><text x="16" y="24" text-anchor="middle" font-size="22" fill="#fff">🚶‍♂️</text></svg>';
     if (type === 'metro') return `<svg width="20" height="20" viewBox="0 0 20 20"><circle cx="10" cy="10" r="8" fill="${lineColors[line]||'#FFD600'}"/><text x="10" y="15" text-anchor="middle" font-size="13" fill="#232733">M</text></svg>`;
     if (type === 'rer') return `<svg width="20" height="20" viewBox="0 0 20 20"><circle cx="10" cy="10" r="8" fill="${lineColors[line]||'#4185C5'}"/><text x="10" y="15" text-anchor="middle" font-size="13" fill="#fff">RER</text></svg>`;
     if (type === 'bus') return '<svg width="20" height="20" viewBox="0 0 20 20"><rect x="3" y="5" width="14" height="10" rx="3" fill="#0078d4"/><text x="10" y="15" text-anchor="middle" font-size="13" fill="#fff">BUS</text></svg>';
@@ -514,6 +521,7 @@
           }
           if (!line) line = (currStation.lineNumbers && currStation.lineNumbers.length) ? currStation.lineNumbers[0] : '';
           const type = (/^\d+$/.test(line) ? 'Métro' : /^[A-E]$/.test(line) ? 'RER' : /BUS/i.test(line) ? 'Bus' : '');
+          let lineColor = this.lineColors[line] || '##383838';
           // Détection de correspondance : changement de ligne ou type
           const prevLine = (prevStation.lineNumbers && prevStation.lineNumbers.length) ? prevStation.lineNumbers[0] : '';
           const prevType = (/^\d+$/.test(prevLine) ? 'Métro' : /^[A-E]$/.test(prevLine) ? 'RER' : /BUS/i.test(prevLine) ? 'Bus' : '');
@@ -522,14 +530,15 @@
             let direction = curr.trip_headsign ? `Direction ${curr.trip_headsign}` : (curr.trip_id ? `Direction ${this.getDirectionName(curr.trip_id)}` : null);
             steps.push({
               icon: getIcon(type.toLowerCase(), line, this.lineColors),
-              iconStyle: `font-size:1.3em;${type==='Métro'?`color:${this.lineColors[line]||'#FFD600'};`:type==='RER'?`color:${this.lineColors[line]||'#4185C5'};`:''}`,
+              iconStyle: `font-size:1.3em;${type==='Métro'?`color:${this.lineColors[line]||'##1a1a1a'};`:type==='RER'?`color:${this.lineColors[line]||'#4185C5'};`:''}`,
               title: `Prendre ${type} <b>${line}</b> à <b>${curr.name}</b>`,
               station: curr.name,
               lineLabel: line,
-              lineStyle: `background:${this.lineColors[line]||'#FFD600'};color:#fff;padding:2px 8px;border-radius:8px;margin-left:8px;`,
+              lineStyle: `background:${this.lineColors[line]||'##1a1a1a'};color:#fff;padding:2px 8px;border-radius:8px;margin-left:8px;`,
               desc: direction,
               time: curr.arrival_time ? this.formatHour(curr.arrival_time) : '',
-              isCorrespondance: false
+              isCorrespondance: false,
+              lineColor,
             });
           } else {
             // Correspondance ou marche
@@ -601,7 +610,7 @@
                 [prevPos.lat, prevPos.lon],
                 [currPos.lat, currPos.lon]
               ],
-              color: this.lineColors[line] || '#FFD600'
+              color: this.lineColors[line] || '##1a1a1a'
             });
           }
         }
@@ -631,7 +640,7 @@
               if (commonLines.length > 0) line = commonLines[0];
             }
             if (!line) line = (curr.lineNumbers && curr.lineNumbers.length) ? curr.lineNumbers[0] : '';
-            colors.push(this.lineColors[line] || '#FFD600');
+            colors.push(this.lineColors[line] || '##1a1a1a');
           }
         }
         return colors;
@@ -861,9 +870,9 @@
       getStationColor(station) {
         const st = this.stationsMap[station.id] || {};
         if (st.lineNumbers && st.lineNumbers.length) {
-          return this.lineColors[st.lineNumbers[0]] || "#FFD600";
+          return this.lineColors[st.lineNumbers[0]] || "##1a1a1a";
         }
-        return "#FFD600";
+        return "##1a1a1a";
       },
 
       formatDistance(distance) {
@@ -884,8 +893,8 @@
 
       getMetroIcon(station) {
         const color = (station.lineNumbers && station.lineNumbers.length)
-          ? this.lineColors[station.lineNumbers[0]] || "#FFD600"
-          : "#FFD600";
+          ? this.lineColors[station.lineNumbers[0]] || "##1a1a1a"
+          : "##1a1a1a";
         const svg = `
           <svg width="28" height="28" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
             <circle cx="14" cy="14" r="10" fill="${color}" stroke="#232733" stroke-width="4"/>
@@ -1239,7 +1248,7 @@
 
   .timeline {
     position: relative;
-    padding: 10px 10px;
+    padding: 10px 15px ;
   }
 
   .timeline-step {
@@ -1252,9 +1261,11 @@
   .timeline-left {
     position: relative;
     width: 40px;
+    min-width: 40px;
     display: flex;
+    flex-direction: column;
     align-items: center;
-    justify-content: center;
+    position: relative;
   }
 
   .timeline-line {
@@ -1262,9 +1273,12 @@
     left: 50%;
     top: 0;
     bottom: 0;
-    width: 2px;
-    background: #e0e0e0;
-    z-index: 1;
+    width: 3px;
+    background: #3881da;
+    left: 50%;
+    transform: translateX(-50%);
+    border-radius: 2px;
+    z-index: 0;
   }
 
   .timeline-content {
@@ -1313,6 +1327,7 @@
 }
 .timeline-left {
   width: 32px;
+  top: -5px;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -1320,7 +1335,6 @@
 }
 .timeline-line {
   width: 2px;
-  background: #bcd;
   flex: 1 1 auto;
   margin: 0 auto;
   min-height: 24px;
