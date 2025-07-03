@@ -46,7 +46,7 @@ async function loadMetroDataFromDB() {
     console.log('🔄 Chargement des données GTFS...');
     const [stopsResults, tripsResults, stopTimesResults, routesResults, pathwaysResults, transfersResults] = await Promise.all([
       queryDB('SELECT stop_id, stop_name, stop_lat, stop_lon FROM stops'),
-      queryDB('SELECT trip_id, route_id FROM trips'),
+      queryDB('SELECT trip_id, route_id, trip_headsign FROM trips'),
       queryDB('SELECT trip_id, arrival_time, departure_time, stop_id, stop_sequence FROM stop_times'),
       queryDB('SELECT route_id, route_short_name, route_long_name, route_type FROM routes'),
       queryDB('SELECT pathway_id, from_stop_id, to_stop_id, pathway_mode, is_bidirectional, length, traversal_time FROM pathways'),
@@ -184,12 +184,22 @@ async function loadMetroDataFromDB() {
 }
 
 let stations = [], station_shown = [], links = [], graph = {};
+let tripsResults = [];
 (async () => {
   const data = await loadMetroDataFromDB();
   stations = data.stations;
   station_shown = data.station_shown;
   links = data.links;
   graph = data.graph;
+  // Charger tripsResults globalement
+  // On recharge uniquement tripsResults ici
+  try {
+    const trips = await queryDB('SELECT trip_id, route_id, trip_headsign FROM trips');
+    tripsResults = trips;
+  } catch (err) {
+    console.error('❌ Erreur lors du chargement de tripsResults :', err);
+    tripsResults = [];
+  }
 })();
 
 app.get('/api/stations', (req, res) => res.json(station_shown));
@@ -285,6 +295,11 @@ app.get('/api/journey', (req, res) => {
             .sort((a, b) => timeToSeconds(a.departure) - timeToSeconds(b.departure));
           if (validTrips.length > 0) {
             bestLink = validTrips[0];
+            // Sécurité : ne jamais prendre un trip dont l'attente dépasse 4h (14400s)
+            const waitTime = timeToSeconds(bestLink.departure) - currentTime;
+            if (waitTime > 4 * 3600) {
+              noService = true;
+            }
           } else {
             // Aucun trip après l'heure courante : on arrête le calcul
             noService = true;
@@ -305,13 +320,16 @@ app.get('/api/journey', (req, res) => {
             }
           }
         }
+      } else if (currentTime) {
+        departure_time_step = arrival_time = currentTime;
       }
-    } else if (currentTime) {
-      departure_time_step = arrival_time = currentTime;
     }
     if (trip_id) {
-      const trip = links.find(l => l.trip_id === trip_id);
+      // Utiliser tripsResults global
+      const trip = tripsResults && tripsResults.length ? tripsResults.find(tr => tr.trip_id === trip_id) : links.find(l => l.trip_id === trip_id);
       if (trip && trip.route_id) route_id = trip.route_id;
+      // Ajout de la direction (headsign)
+      var trip_headsign = trip && trip.trip_headsign ? trip.trip_headsign : null;
     }
     enrichedPath.push({
       id: st.id,
@@ -321,7 +339,8 @@ app.get('/api/journey', (req, res) => {
       arrival_time,
       departure_time: departure_time_step,
       trip_id,
-      route_id
+      route_id,
+      trip_headsign
     });
     if (noService) break;
   }

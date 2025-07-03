@@ -485,6 +485,7 @@
           icon: getIcon('walk', null, this.lineColors),
           iconStyle: 'font-size:1.3em;',
           title: `Départ : <b>${this.roadmap[0].name}</b>`,
+          station: this.roadmap[0].name,
           desc: null,
           time: this.roadmap[0].arrival_time ? this.formatHour(this.roadmap[0].arrival_time) : '',
           isCorrespondance: false
@@ -505,14 +506,16 @@
           const prevLine = (prevStation.lineNumbers && prevStation.lineNumbers.length) ? prevStation.lineNumbers[0] : '';
           const prevType = (/^\d+$/.test(prevLine) ? 'Métro' : /^[A-E]$/.test(prevLine) ? 'RER' : /BUS/i.test(prevLine) ? 'Bus' : '');
           const isCorrespondance = (line !== prevLine || type !== prevType);
-          if (type === 'Métro' || type === 'RER' || type === 'Bus') {
+          if (type === 'Métro' || type === 'RER') {
+            let direction = curr.trip_headsign ? `Direction ${curr.trip_headsign}` : (curr.trip_id ? `Direction ${this.getDirectionName(curr.trip_id)}` : null);
             steps.push({
               icon: getIcon(type.toLowerCase(), line, this.lineColors),
               iconStyle: `font-size:1.3em;${type==='Métro'?`color:${this.lineColors[line]||'#FFD600'};`:type==='RER'?`color:${this.lineColors[line]||'#4185C5'};`:''}`,
-              title: `Prendre ${type} <b>${line}</b>`,
+              title: `Prendre ${type} <b>${line}</b> à <b>${curr.name}</b>`,
+              station: curr.name,
               lineLabel: line,
               lineStyle: `background:${this.lineColors[line]||'#FFD600'};color:#fff;padding:2px 8px;border-radius:8px;margin-left:8px;`,
-              desc: `Direction ${this.getDirectionName(curr.trip_id)}`,
+              desc: direction,
               time: curr.arrival_time ? this.formatHour(curr.arrival_time) : '',
               isCorrespondance: false
             });
@@ -544,6 +547,7 @@
               icon: getIcon('walk', null, this.lineColors),
               iconStyle: 'font-size:1.3em;',
               title: `Correspondance à <b>${curr.name}</b>`,
+              station: curr.name,
               desc: waitDesc,
               time: curr.arrival_time ? this.formatHour(curr.arrival_time) : '',
               isCorrespondance: true
@@ -555,6 +559,7 @@
           icon: getIcon('walk', null, this.lineColors),
           iconStyle: 'font-size:1.3em;',
           title: `Arrivée : <b>${this.roadmap[this.roadmap.length-1].name}</b>`,
+          station: this.roadmap[this.roadmap.length-1].name,
           desc: null,
           time: this.roadmap[this.roadmap.length-1].arrival_time ? this.formatHour(this.roadmap[this.roadmap.length-1].arrival_time) : '',
           isCorrespondance: false
@@ -747,6 +752,11 @@
       filterStartSuggestions() {
         const input = this.startInput.trim().toLowerCase();
         const forbidden = this.forbiddenWords();
+        const exceptions = [
+          "avenue foch",
+          "avenue henri martin",
+          "avenue du pdt kennedy"
+        ];
         if (!input) {
           this.filteredStartSuggestions = [];
           this.showStartSuggestions = false;
@@ -755,7 +765,8 @@
         let suggestions = this.stationList.filter(st =>
           st.id &&
           st.name.toLowerCase().includes(input) &&
-          !forbidden.some(word => st.name.toLowerCase().includes(word)) &&
+          // Exception : ne pas filtrer si le nom exact est dans exceptions
+          (!forbidden.some(word => st.name.toLowerCase().includes(word)) || exceptions.includes(st.name.trim().toLowerCase())) &&
           (!this.endStation || st.id !== this.endStation.id)
         );
         // Regroupement RER
@@ -779,6 +790,11 @@
       filterEndSuggestions() {
         const input = this.endInput.trim().toLowerCase();
         const forbidden = this.forbiddenWords();
+        const exceptions = [
+          "avenue foch",
+          "avenue henri martin",
+          "avenue du pdt kennedy"
+        ];
         if (!input) {
           this.filteredEndSuggestions = [];
           this.showEndSuggestions = false;
@@ -786,7 +802,8 @@
         }
         let suggestions = this.stationList.filter(st =>
           st.name.toLowerCase().includes(input) &&
-          !forbidden.some(word => st.name.toLowerCase().includes(word)) &&
+          // Exception : ne pas filtrer si le nom exact est dans exceptions
+          (!forbidden.some(word => st.name.toLowerCase().includes(word)) || exceptions.includes(st.name.trim().toLowerCase())) &&
           (!this.startStation || st.id !== this.startStation.id)
         );
         const rerPattern = /^[A-E]$/;
@@ -932,6 +949,7 @@
         if (!seconds || isNaN(seconds)) return '00:00:00';
         const h = Math.floor(seconds / 3600);
         const m = Math.floor((seconds % 3600) / 60);
+        const s = seconds % 60;
         return [h, m, s].map(v => v.toString().padStart(2, '0')).join(':');
       },
 
