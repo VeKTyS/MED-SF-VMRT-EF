@@ -439,7 +439,6 @@
         // Génère la liste des étapes pour la timeline
         if (!this.roadmap.length) return [];
         const steps = [];
-        // Départ à pied
         steps.push({
           icon: getIcon('walk', null, this.lineColors),
           iconStyle: 'font-size:1.3em;',
@@ -451,15 +450,22 @@
         for (let i = 1; i < this.roadmap.length; i++) {
           const prev = this.roadmap[i-1];
           const curr = this.roadmap[i];
-          const st = this.stationsMap[curr.id] || {};
-          const type = this.getLineType(st);
+          const prevStation = this.stationsMap[prev.id] || {};
+          const currStation = this.stationsMap[curr.id] || {};
+          let line = null;
+          if (prevStation.lineNumbers && currStation.lineNumbers) {
+            const commonLines = prevStation.lineNumbers.filter(l => currStation.lineNumbers.includes(l));
+            if (commonLines.length > 0) line = commonLines[0];
+          }
+          if (!line) line = (currStation.lineNumbers && currStation.lineNumbers.length) ? currStation.lineNumbers[0] : '';
+          const type = (/^\d+$/.test(line) ? 'Métro' : /^[A-E]$/.test(line) ? 'RER' : /BUS/i.test(line) ? 'Bus' : '');
           if (type === 'Métro' || type === 'RER' || type === 'Bus') {
             steps.push({
-              icon: getIcon(type.toLowerCase(), this.getMainLine(st), this.lineColors),
-              iconStyle: `font-size:1.3em;${type==='Métro'?`color:${this.lineColors[this.getMainLine(st)]||'#FFD600'};`:type==='RER'?`color:${this.lineColors[this.getMainLine(st)]||'#4185C5'};`:''}`,
-              title: `Prendre ${type} <b>${this.getMainLine(st)}</b>`,
-              lineLabel: this.getMainLine(st),
-              lineStyle: `background:${this.lineColors[this.getMainLine(st)]||'#FFD600'};color:#fff;padding:2px 8px;border-radius:8px;margin-left:8px;`,
+              icon: getIcon(type.toLowerCase(), line, this.lineColors),
+              iconStyle: `font-size:1.3em;${type==='Métro'?`color:${this.lineColors[line]||'#FFD600'};`:type==='RER'?`color:${this.lineColors[line]||'#4185C5'};`:''}`,
+              title: `Prendre ${type} <b>${line}</b>`,
+              lineLabel: line,
+              lineStyle: `background:${this.lineColors[line]||'#FFD600'};color:#fff;padding:2px 8px;border-radius:8px;margin-left:8px;`,
               desc: `Direction ${this.getDirectionName(curr.trip_id)}`,
               time: curr.arrival_time ? this.formatHour(curr.arrival_time) : '',
               isCorrespondance: false
@@ -492,18 +498,58 @@
         if (!this.roadmap || this.roadmap.length < 2) return [];
         const segments = [];
         for (let i = 1; i < this.roadmap.length; i++) {
-          const from = this.pospointsMap[this.roadmap[i-1].id];
-          const to = this.pospointsMap[this.roadmap[i].id];
-          if (from && to) {
-            const st = this.stationsMap[this.roadmap[i]] || {};
-            const line = this.getMainLine(st);
+          const prev = this.roadmap[i-1];
+          const curr = this.roadmap[i];
+          const prevPos = this.pospointsMap[prev.id];
+          const currPos = this.pospointsMap[curr.id];
+          if (prevPos && currPos) {
+            const prevStation = this.stationsMap[prev.id] || {};
+            const currStation = this.stationsMap[curr.id] || {};
+            let line = null;
+            if (prevStation.lineNumbers && currStation.lineNumbers) {
+              const commonLines = prevStation.lineNumbers.filter(l => currStation.lineNumbers.includes(l));
+              if (commonLines.length > 0) line = commonLines[0];
+            }
+            if (!line) line = (currStation.lineNumbers && currStation.lineNumbers.length) ? currStation.lineNumbers[0] : '';
             segments.push({
-              latlngs: [[from.lat, from.lon], [to.lat, to.lon]],
+              latlngs: [
+                [prevPos.lat, prevPos.lon],
+                [currPos.lat, currPos.lon]
+              ],
               color: this.lineColors[line] || '#FFD600'
             });
           }
         }
         return segments;
+      },
+
+      roadmapColors() {
+        // Retourne un tableau de couleurs pour chaque étape du roadmap (pour les marqueurs sur la carte)
+        if (!this.roadmap || !this.roadmap.length) return [];
+        const colors = [];
+        for (let i = 0; i < this.roadmap.length; i++) {
+          if (i === 0) {
+            // Première station : couleur principale de la station
+            const st = this.stationsMap[this.roadmap[0].id] || {};
+            let color = '#FFD600';
+            if (st.lineNumbers && st.lineNumbers.length) {
+              color = this.lineColors[st.lineNumbers[0]] || color;
+            }
+            colors.push(color);
+          } else {
+            // Pour les autres, intersection des lignes avec la précédente
+            const prev = this.stationsMap[this.roadmap[i-1].id] || {};
+            const curr = this.stationsMap[this.roadmap[i].id] || {};
+            let line = null;
+            if (prev.lineNumbers && curr.lineNumbers) {
+              const commonLines = prev.lineNumbers.filter(l => curr.lineNumbers.includes(l));
+              if (commonLines.length > 0) line = commonLines[0];
+            }
+            if (!line) line = (curr.lineNumbers && curr.lineNumbers.length) ? curr.lineNumbers[0] : '';
+            colors.push(this.lineColors[line] || '#FFD600');
+          }
+        }
+        return colors;
       }
     },
     methods: {
@@ -517,7 +563,8 @@
           if (!res.ok) throw new Error((await res.json()).error || `HTTP error! status: ${res.status}`);
           const data = await res.json();
           if (!data.path?.length) throw new Error("No valid path found between the selected stations.");
-          this.roadmap = data.path.map(st => ({ id: st.id, name: st.name, cumulativeDistance: st.distance }));
+          // On garde toutes les propriétés de chaque étape (dont line/route_id)
+          this.roadmap = data.path.map(st => ({ ...st }));
           this.routeCoords = data.path.map(st => this.pospointsMap[st.id]).filter(Boolean).map(st => [st.lat, st.lon]);
           this.totalDistance = data.totalDistance || 0;
         } catch (error) {
@@ -770,9 +817,16 @@
         if (!roadmap || roadmap.length === 0) return [];
         const segments = [];
         let startIdx = 0;
-        let currentLine = this.getMainLine(roadmap[0]);
+        let prevStation = this.stationsMap[roadmap[0].id] || {};
+        let currentLine = (prevStation.lineNumbers && prevStation.lineNumbers.length) ? prevStation.lineNumbers[0] : '';
         for (let i = 1; i < roadmap.length; i++) {
-          const line = this.getMainLine(roadmap[i]);
+          const currStation = this.stationsMap[roadmap[i].id] || {};
+          let line = '';
+          if (prevStation.lineNumbers && currStation.lineNumbers) {
+            const commonLines = prevStation.lineNumbers.filter(l => currStation.lineNumbers.includes(l));
+            if (commonLines.length > 0) line = commonLines[0];
+          }
+          if (!line) line = (currStation.lineNumbers && currStation.lineNumbers.length) ? currStation.lineNumbers[0] : '';
           if (line !== currentLine) {
             segments.push({
               line: currentLine,
@@ -782,9 +836,10 @@
               toId: roadmap[i - 1].id,
               count: i - startIdx
             });
-            startIdx = i; // Correction ici pour éviter les doublons de stations
+            startIdx = i;
             currentLine = line;
           }
+          prevStation = currStation;
         }
         segments.push({
           line: currentLine,
