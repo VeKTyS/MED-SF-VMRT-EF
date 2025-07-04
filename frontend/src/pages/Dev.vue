@@ -541,14 +541,25 @@
           const prevType = (/^\d+$/.test(prevLine) ? 'Métro' : /^[A-E]$/.test(prevLine) ? 'RER' : /BUS/i.test(prevLine) ? 'Bus' : '');
           const isCorrespondance = (line !== prevLine || type !== prevType);
           if (type === 'Métro' || type === 'RER') {
-            let direction = curr.trip_headsign ? `Direction ${curr.trip_headsign}` : (curr.trip_id ? `Direction ${this.getDirectionName(curr.trip_id)}` : null);
+            // Determine boarding direction from the next stop when possible
+            let direction = null;
+            if (i + 1 < this.roadmap.length) {
+              const nextStop = this.roadmap[i + 1];
+              direction = nextStop.trip_headsign ? `Direction ${nextStop.trip_headsign}`
+                : (nextStop.trip_id ? `Direction ${this.getDirectionName(nextStop.trip_id)}` : null);
+            } else if (curr.trip_headsign) {
+              direction = `Direction ${curr.trip_headsign}`;
+            } else if (curr.trip_id) {
+              direction = `Direction ${this.getDirectionName(curr.trip_id)}`;
+            }
+            // Use prev station as boarding point for the step
             steps.push({
               icon: getIcon(type.toLowerCase(), line, this.lineColors),
-              iconStyle: `font-size:1.3em;${type==='Métro'?`color:${this.lineColors[line]||'#FFD600'};`:type==='RER'?`color:${this.lineColors[line]||'#4185C5'};`:''}`,
-              title: `Prendre ${type} <b>${line}</b> à <b>${curr.name}</b>` + (this.stationsMap[curr.id]?.wheelchair_boarding == 1 ? ' <span style=\"vertical-align:middle;margin-left:4px;\" v-html=\"PMR_ICON\"></span>' : ''),
-              station: curr.name,
+              iconStyle: `font-size:1.3em;${type === 'Métro' ? `color:${this.lineColors[line] || '#FFD600'};` : `color:${this.lineColors[line] || '#4185C5'};`}`,
+              title: `Prendre ${type} <b>${line}</b> à <b>${prev.name}</b>` + (this.stationsMap[curr.id]?.wheelchair_boarding == 1 ? ' <span style="vertical-align:middle;margin-left:4px;" v-html="PMR_ICON"></span>' : ''),
+              station: prev.name,
               lineLabel: line,
-              lineStyle: `background:${this.lineColors[line]||'#FFD600'};color:#fff;padding:2px 8px;border-radius:8px;margin-left:8px;`,
+              lineStyle: `background:${this.lineColors[line] || '#FFD600'};color:#fff;padding:2px 8px;border-radius:8px;margin-left:8px;`,
               desc: direction,
               time: curr.arrival_time ? this.formatHour(curr.arrival_time) : '',
               isCorrespondance: false
