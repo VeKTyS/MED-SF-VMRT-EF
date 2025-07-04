@@ -302,7 +302,7 @@ app.get('/api/journey', async (req, res) => {
     ? timeToSeconds(departure_time)
     : null;
   const enrichedPath = [];
-  let noService = false;
+  let fallbackUsed = false;
   for (let i = 0; i < result.path.length; i++) {
     const st = result.path[i];
     const prev = i > 0 ? result.path[i-1] : null;
@@ -320,23 +320,24 @@ app.get('/api/journey', async (req, res) => {
       }
       let bestLink = null;
       if (possibleLinks.length) {
+        // If trips are available and we have a requested time, choose next or fallback
         if (currentTime && possibleLinks.some(l => l.type === 'trip')) {
           const tripLinks = possibleLinks.filter(l => l.type === 'trip' && l.departure);
+          // Future trips at or after currentTime
           const validTrips = tripLinks.filter(l => timeToSeconds(l.departure) >= currentTime)
             .sort((a, b) => timeToSeconds(a.departure) - timeToSeconds(b.departure));
           if (validTrips.length > 0) {
             bestLink = validTrips[0];
-            const waitTime = timeToSeconds(bestLink.departure) - currentTime;
-            if (waitTime > 4 * 3600) {
-              noService = true;
-            }
           } else {
-            noService = true;
+            // Fallback to earliest trip regardless of requested time
+            fallbackUsed = true;
+            bestLink = tripLinks.sort((a, b) => timeToSeconds(a.departure) - timeToSeconds(b.departure))[0];
           }
         } else {
+          // No timing constraint or only transfers/pathways
           bestLink = possibleLinks[0];
         }
-        if (bestLink && !noService) {
+        if (bestLink) {
           if (bestLink.type === 'trip') {
             arrival_time = bestLink.arrival;
             departure_time_step = bestLink.departure;
@@ -350,6 +351,7 @@ app.get('/api/journey', async (req, res) => {
           }
         }
       } else if (currentTime) {
+        // No link but keep currentTime
         departure_time_step = arrival_time = currentTime;
       }
     }
@@ -369,25 +371,20 @@ app.get('/api/journey', async (req, res) => {
       route_id,
       trip_headsign
     });
-    if (noService) break;
   }
 
-  if (noService) {
-    return res.status(200).json({
-      from: fromStation,
-      to: toStation,
-      path: enrichedPath,
-      totalDistance: result.totalDistance,
-      warning: 'Aucun service disponible après l\'heure courante pour une ou plusieurs étapes.'
-    });
-  }
-
-  res.json({
+  // Respond with warning if fallback used
+  const response = {
     from: fromStation,
     to: toStation,
     path: enrichedPath,
     totalDistance: result.totalDistance
-  });
+  };
+  if (fallbackUsed) {
+    response.warning = 'Certains segments utilisent le prochain départ disponible par défaut.';
+  }
+
+  res.json(response);
 });
 
 function getStationNameById(id) {
