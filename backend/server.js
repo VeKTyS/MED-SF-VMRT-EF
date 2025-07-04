@@ -46,7 +46,7 @@ async function loadMetroDataFromDB() {
   try {
     console.log('🔄 Chargement des données GTFS...');
     const [stopsResults, tripsResults, stopTimesResults, routesResults, pathwaysResults, transfersResults] = await Promise.all([
-      queryDB('SELECT stop_id, stop_name, stop_lat, stop_lon FROM stops'),
+      queryDB('SELECT stop_id, stop_name, stop_lat, stop_lon, wheelchair_boarding FROM stops'),
       queryDB('SELECT trip_id, route_id, trip_headsign FROM trips'),
       queryDB('SELECT trip_id, arrival_time, departure_time, stop_id, stop_sequence FROM stop_times'),
       queryDB('SELECT route_id, route_short_name, route_long_name, route_type FROM routes'),
@@ -79,7 +79,8 @@ async function loadMetroDataFromDB() {
           name: stop.stop_name,
           lat: parseFloat(stop.stop_lat),
           lon: parseFloat(stop.stop_lon),
-          lineNumbers
+          lineNumbers,
+          wheelchair_boarding: stop.wheelchair_boarding !== undefined ? stop.wheelchair_boarding : null
         });
       }
     });
