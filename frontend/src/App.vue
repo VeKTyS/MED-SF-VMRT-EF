@@ -18,9 +18,13 @@
   <footer>
     <div class="footer-content">
       <p>© 2025 - Tous droits réservés</p>
-      <p>Développé par <a href="https://github.com/VeKTyS" target="_blank">VeKTyS</a>
-      | <a href="https://github.com/MaceoMARLIN" target="_blank">Darksasuke911</a>
-      | <a href="https://github.com/jona3341" target="_blank">jona3341</a></p>
+      <p>Développé par <a href="https://github.com/VeKTyS" target="_blank">Lucas</a>
+      | <a href="https://github.com/MaceoMARLIN" target="_blank">Maceo</a>
+      | <a href="https://github.com/jona3341" target="_blank">Jonathan</a>
+      | <a href="https://github.com/Honestyle" target="_blank">Honesty</a>
+      | <a href="https://github.com/jeanmicheldu" target="_blank">Cécilia</a>
+
+    </p>
     </div>
   </footer>
 </template>
