@@ -80,8 +80,8 @@
   flex: 1 1 0;
 }
 .tech-list {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
   gap: 20px;
 }
 .tech-item {
@@ -89,7 +89,7 @@
   align-items: center;
   border-radius: 8px;
   padding: 10px;
-  width: calc(33.333% - 20px);
+  width: auto; /* Laisse le grid gérer la largeur */
 }
 .tech-item img {
   max-width: 40px;

@@ -55,7 +55,7 @@ footer {
 }
 body, .main-layout {
   font-family: 'Inter', Arial, sans-serif;
-  background: linear-gradient(135deg, #3a3a3a 0%, #000000 100%);
+  background:#3a3a3a;
   color: #e0e6ed;
 }
 
@@ -70,11 +70,6 @@ p {
   line-height: 1.5;
   color: #e0e6ed;
   margin-bottom: 20px;
-}
-body, .main-layout {
-  font-family: 'Inter', Arial, sans-serif;
-  background: linear-gradient(135deg, #3a3a3a 0%, #000000 100%);
-  color: #e0e6ed;
 }
 
 .main-layout {
