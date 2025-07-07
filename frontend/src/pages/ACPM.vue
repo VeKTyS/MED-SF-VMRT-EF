@@ -15,7 +15,7 @@
         <div class="about-text">
           <h2>Notre histoire</h2>
           <p>
-            Partie de la problématique des déplacements étudiants, responsables de plus de 40 % des émissions de CO₂ d’un établissement, notre projet combine algorithmes de graphes performants (Dijkstra, Kruskal, Prim) et données réelles pour proposer des itinéraires écologiques. Nous contribuons ainsi à une mobilité plus durable et à la réduction de l’empreinte carbone.
+            Partie de la problématique des déplacements étudiants, responsables de plus de 40 % des émissions de CO₂ d’un établissement, notre projet combine algorithmes de graphes performants (Dijkstra, Kruskal)et données réelles pour proposer des itinéraires écologiques. Nous contribuons ainsi à une mobilité plus durable et à la réduction de l’empreinte carbone.
           </p>
         </div>
       </section>
