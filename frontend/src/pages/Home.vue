@@ -126,15 +126,15 @@
             Afficher Kruskal
           </button>
           <div v-if="mstLoadTime !== null" style="margin-top: 8px; font-size: 0.95em; color: #888;">
-            Temps de chargement ACPM : {{ mstLoadTime.toFixed(0) }} ms
+            Temps de chargement ACPM : <span class="value-yellow">{{ mstLoadTime.toFixed(0) }} ms</span>
           </div>
         </div>
         <div v-if="mode === 'connexite'" class="connexite-controls">
           <button class="dev-search-btn" @click="fetchConnexiteWithTiming" :disabled="isLoading">
             Afficher Connexité
           </button>
-          <div v-if="connexiteLoadTime !== null" class="loading-time">
-            Temps de chargement Connexité : {{ connexiteLoadTime.toFixed(0) }} ms
+          <div v-if="connexiteLoadTime !== null" style="margin-top: 8px; font-size: 0.95em; color: #888;">
+            Temps de chargement Connexité : <span class="value-yellow">{{ connexiteLoadTime.toFixed(0) }} ms</span>
           </div>
         </div>
       </div>
