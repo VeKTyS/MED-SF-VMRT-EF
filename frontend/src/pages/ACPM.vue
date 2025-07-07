@@ -18,14 +18,55 @@
         </p>
       </div>
     </section>
+    <!-- Section Technologies -->
+    <section class="about-tech">
+      <h2>Nos technologies</h2>
+      <div class="tech-list">
+        <div class="tech-item">
+          <img src="../assets/vue.svg" alt="Vue.js" />
+          <div>
+            <b>Vue.js</b>
+            <p>Framework JavaScript moderne pour construire des interfaces utilisateur réactives et performantes.</p>
+          </div>
+        </div>
+        <div class="tech-item">
+          <img src="../assets/Nodejs.svg" alt="Node.js" />
+          <div>
+            <b>Node.js</b>
+            <p>Environnement d’exécution JavaScript côté serveur, idéal pour les applications web rapides et évolutives.</p>
+          </div>
+        </div>
+        <div class="tech-item">
+          <img src="../assets/MySQL.svg" alt="MySQL" />
+          <div>
+            <b>MySQL</b>
+            <p>Système de gestion de base de données relationnelle robuste et largement utilisé.</p>
+          </div>
+        </div>
+        <div class="tech-item">
+          <img src="../assets/leaflet.svg" alt="Leaflet" />
+          <div>
+            <b>Leaflet</b>
+            <p>Bibliothèque JavaScript open source pour des cartes interactives et légères.</p>
+          </div>
+        </div>
+        <div class="tech-item">
+          <img src="../assets/docker.svg" alt="Docker" />
+          <div>
+            <b>Docker</b>
+            <p>Plateforme de conteneurisation pour déployer et gérer facilement les applications et leurs dépendances.</p>
+          </div>
+        </div>
+      </div>
+    </section>
   </div>
 </template>
 
 <style scoped>
 .about-page {
   display: flex;
-  flex-direction: row;
-  justify-content: space-between;
+  flex-direction: column; /* <-- change 'row' en 'column' */
+  justify-content: flex-start;
   padding: 40px;
   gap: 40px;
 }
@@ -37,6 +78,23 @@
   text-align: left;
 }
 .about-story .about-text {
-  text-align: right;
+  text-align: left;
+}
+.tech-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px;
+}
+.tech-item {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  border-radius: 8px;
+  padding: 10px;
+  width: calc(33.333% - 20px);
+}
+.tech-item img {
+  max-width: 40px;
+  margin-right: 10px;
 }
 </style>
