@@ -38,6 +38,9 @@
                 @mousedown.prevent="selectStartSuggestion(suggestion)"
               >
                 {{ suggestion.label }}
+                <span v-if="suggestion.wheelchair_boarding == 1" style="color:#3881da;font-weight:bold;margin-left:4px;">
+                  (accessible PMR)
+                </span>
                 <span v-if="suggestion.lineNumbers && suggestion.lineNumbers.length" style="margin-left:8px;">
                   <template v-if="getLineType(suggestion) === 'RER'">
                     -
@@ -74,6 +77,9 @@
                 @mousedown.prevent="selectEndSuggestion(suggestion)"
               >
                 {{ suggestion.label }}
+                <span v-if="suggestion.wheelchair_boarding == 1" style="color:#3881da;font-weight:bold;margin-left:4px;">
+                  (accessible PMR)
+                </span>
                 <span v-if="suggestion.lineNumbers && suggestion.lineNumbers.length" style="margin-left:8px;">
                   <template v-if="getLineType(suggestion) === 'RER'">
                     -
@@ -109,10 +115,10 @@
             Rechercher
           </button>
           <div v-if="lastJourneyLoadTime !== null" style="margin-top: 8px; font-size: 0.95em; color: #888;">
-            Temps de chargement : <span class="value-yellow">{{ lastJourneyLoadTime.toFixed(0) }}</span> ms
+            Temps de chargement : <span class="value-yellow">{{ lastJourneyLoadTime.toFixed(0) }} ms</span>
           </div>
           <div v-if="empreinteCarbone !== null" class="loading-time">
-            Empreinte carbone estimée : <span class="value-yellow">{{ empreinteCarbone.toFixed(1) }}</span> gCO₂e
+            Empreinte carbone estimée : <span class="value-yellow">{{ empreinteCarbone.toFixed(1) }} gCO₂e</span>
           </div>
         </div>
         <div v-if="mode === 'mst'" class="mst-controls">
@@ -277,6 +283,9 @@
     if (type === 'bus') return '<svg width="20" height="20" viewBox="0 0 20 20"><rect x="3" y="5" width="14" height="10" rx="3" fill="#0078d4"/><text x="10" y="15" text-anchor="middle" font-size="13" fill="#fff">BUS</text></svg>';
     return '';
   }
+
+  // Logo PMR SVG
+  const PMR_ICON = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="12" cy="12" r="12" fill="#3881da"/><path d="M10.5 6.5a1.5 1.5 0 1 1 3 0a1.5 1.5 0 0 1-3 0Zm-2.5 6.5c0-.55.45-1 1-1h3V10a1 1 0 1 1 2 0v2.5a1 1 0 0 1-1 1h-3v2.5a1 1 0 1 1-2 0V13Zm7.5 2.5a1 1 0 0 1 1-1h.5a1 1 0 1 1 0 2h-.5a1 1 0 0 1-1-1Z" fill="#fff"/></svg>`;
 
   export default {
     name: "Dev",
@@ -468,7 +477,7 @@
         steps.push({
           icon: getIcon('walk', null, this.lineColors),
           iconStyle: 'font-size:1.3em;',
-          title: `Départ : <b>${this.roadmap[0].name}</b>`,
+          title: `Départ : <b>${this.roadmap[0].name}</b>` + (this.stationsMap[this.roadmap[0].id]?.wheelchair_boarding == 1 ? ' <span style=\"vertical-align:middle;margin-left:4px;\" v-html=\"PMR_ICON\"></span>' : ''),
           station: this.roadmap[0].name,
           desc: null,
           time: this.roadmap[0].arrival_time ? this.formatHour(this.roadmap[0].arrival_time) : '',
@@ -492,18 +501,28 @@
           const prevType = (/^\d+$/.test(prevLine) ? 'Métro' : /^[A-E]$/.test(prevLine) ? 'RER' : /BUS/i.test(prevLine) ? 'Bus' : '');
           const isCorrespondance = (line !== prevLine || type !== prevType);
           if (type === 'Métro' || type === 'RER') {
-            let direction = curr.trip_headsign ? `Direction ${curr.trip_headsign}` : (curr.trip_id ? `Direction ${this.getDirectionName(curr.trip_id)}` : null);
+            // Determine boarding direction from the next stop when possible
+            let direction = null;
+            if (i + 1 < this.roadmap.length) {
+              const nextStop = this.roadmap[i + 1];
+              direction = nextStop.trip_headsign ? `Direction ${nextStop.trip_headsign}`
+                : (nextStop.trip_id ? `Direction ${this.getDirectionName(nextStop.trip_id)}` : null);
+            } else if (curr.trip_headsign) {
+              direction = `Direction ${curr.trip_headsign}`;
+            } else if (curr.trip_id) {
+              direction = `Direction ${this.getDirectionName(curr.trip_id)}`;
+            }
+            // Use prev station as boarding point for the step
             steps.push({
               icon: getIcon(type.toLowerCase(), line, this.lineColors),
-              iconStyle: `font-size:1.3em;${type==='Métro'?`color:${this.lineColors[line]||'##1a1a1a'};`:type==='RER'?`color:${this.lineColors[line]||'#4185C5'};`:''}`,
-              title: `Prendre ${type} <b>${line}</b> à <b>${curr.name}</b>`,
-              station: curr.name,
+              iconStyle: `font-size:1.3em;${type === 'Métro' ? `color:${this.lineColors[line] || '#FFD600'};` : `color:${this.lineColors[line] || '#4185C5'};`}`,
+              title: `Prendre ${type} <b>${line}</b> à <b>${prev.name}</b>` + (this.stationsMap[curr.id]?.wheelchair_boarding == 1 ? ' <span style="vertical-align:middle;margin-left:4px;" v-html="PMR_ICON"></span>' : ''),
+              station: prev.name,
               lineLabel: line,
-              lineStyle: `background:${this.lineColors[line]||'##1a1a1a'};color:#fff;padding:2px 8px;border-radius:8px;margin-left:8px;`,
+              lineStyle: `background:${this.lineColors[line] || '#FFD600'};color:#fff;padding:2px 8px;border-radius:8px;margin-left:8px;`,
               desc: direction,
               time: curr.arrival_time ? this.formatHour(curr.arrival_time) : '',
-              isCorrespondance: false,
-              lineColor,
+              isCorrespondance: false
             });
           } else {
             // Correspondance ou marche
@@ -544,7 +563,7 @@
         steps.push({
           icon: getIcon('walk', null, this.lineColors),
           iconStyle: 'font-size:1.3em;',
-          title: `Arrivée : <b>${this.roadmap[this.roadmap.length-1].name}</b>`,
+          title: `Arrivée : <b>${this.roadmap[this.roadmap.length-1].name}</b>` + (this.stationsMap[this.roadmap[this.roadmap.length-1].id]?.wheelchair_boarding == 1 ? ' <span style=\"vertical-align:middle;margin-left:4px;\" v-html=\"PMR_ICON\"></span>' : ''),
           station: this.roadmap[this.roadmap.length-1].name,
           desc: null,
           time: this.roadmap[this.roadmap.length-1].arrival_time ? this.formatHour(this.roadmap[this.roadmap.length-1].arrival_time) : '',
@@ -1336,7 +1355,6 @@
   background-color: #3881da4d;
   text-align: center;
 }
-
 .value-yellow {
   color: #FFD600;
   font-weight: bold;
