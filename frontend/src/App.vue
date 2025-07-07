@@ -6,8 +6,7 @@
   <header>
     <nav>
       <div class="nav-left">
-        <img class="nav_item" src="./assets/vue.svg"/>
-        <router-link to="/">Accueil</router-link>
+        <router-link to="/"><img class="nav_item" style="width: 40%" src="./assets/image (1).svg"/></router-link>
       </div>
       <div class="nav-right">
         <router-link to="/about">A propos</router-link>

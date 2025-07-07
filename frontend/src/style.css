@@ -33,7 +33,7 @@ nav a {
     height: 100%;
     transition: box-shadow 0.2s, background 0.2s;
 }
-nav a:hover {
+.nav-right a:hover {
     box-shadow: 0 2px 8px rgba(0,0,0,0.25);
     background: grey;
 }
@@ -52,4 +52,268 @@ footer {
     justify-content: center;
     align-items: center;
     gap: 20px;
+}
+body, .main-layout {
+  font-family: 'Inter', Arial, sans-serif;
+  background: linear-gradient(135deg, #3a3a3a 0%, #000000 100%);
+  color: #e0e6ed;
+}
+
+/*Jona style*/
+h1 {
+  font-size: 2rem;
+  margin-bottom: 20px;
+  color: #FFD600;
+}
+p {
+  font-size: 1.2rem;
+  line-height: 1.5;
+  color: #e0e6ed;
+  margin-bottom: 20px;
+}
+body, .main-layout {
+  font-family: 'Inter', Arial, sans-serif;
+  background: linear-gradient(135deg, #3a3a3a 0%, #000000 100%);
+  color: #e0e6ed;
+}
+
+.main-layout {
+  display: flex;
+  flex-direction: row;
+  height: 100vh;
+}
+
+.center-panel {
+  flex: 0 0 400px;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  z-index: 10;
+}
+
+.form-card {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  padding: 20px;
+  margin-bottom: 20px;
+  width:auto;
+  backdrop-filter: blur(10px);
+}
+
+.mode-switch {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 20px;
+  font-size: large;
+}
+
+.mode-switch label {
+  cursor: pointer;
+  padding: 10px 20px;
+  border-radius: 20px;
+  transition: background 0.3s;
+}
+
+.mode-switch input {
+  display: none;
+}
+
+.mode-switch label:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.mode-switch input:checked + label {
+  background: #FFD600;
+  color: #181c23;
+}
+
+.route-controls, .mst-controls {
+  margin-top: 20px;
+  font-size: large;
+}
+
+.autocomplete-group {
+  margin-bottom: 15px;
+}
+
+.autocomplete-group label {
+  display: block;
+  margin-bottom: 5px;
+}
+
+.autocomplete-group input {
+  width: 100%;
+  padding: 10px 0px;
+  border: 1px solid #444;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.1);
+  color: #e0e6ed;
+  transition: border 0.3s;
+}
+
+.autocomplete-group input:focus {
+  border-color: #FFD600;
+  outline: none;
+}
+
+.suggestions {
+  font-size: 1rem;
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  background: #232733;
+  border-radius: 4px;
+  border: 1px solid #444;
+  max-height: 200px;
+  overflow-y: auto;
+  z-index: 100;
+  position: absolute;
+  width: calc(100% - 22px);
+}
+
+.suggestions li {
+  padding: 10px;
+  cursor: pointer;
+  transition: background 0.3s;
+}
+
+.suggestions li:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.loading-indicator {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(255, 255, 255, 0.8);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 2000;
+}
+
+.spinner {
+  width: 40px;
+  height: 40px;
+  border: 4px solid rgba(0, 123, 255, 0.3);
+  border-top: 4px solid rgba(0, 123, 255, 1);
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.dev-search-btn {
+  width: 100%;
+  padding: 12px;
+  background: #1e90ff;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-size: 1.1rem;
+  margin-top: 10px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.dev-search-btn:hover {
+  background: #1565c0;
+}
+
+.dev-search-btn:disabled {
+  background: rgba(255, 214, 0, 0.5);
+  cursor: not-allowed;
+}
+
+.roadmap-card {
+  font-size: 1.2rem;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  padding: 20px;
+  margin-top: 20px;
+  backdrop-filter: blur(10px);
+}
+
+.dev-time {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 15px;
+}
+
+.dev-time h2 {
+  margin: 0;
+  font-size: 24px;
+  color: #FFD600;
+}
+
+.dev-roadmap-details {
+  margin-top: 10px;
+}
+
+.dev-roadmap-details h4 {
+  margin: 0 0 10px 0;
+  font-size: 18px;
+  color: #FFD600;
+}
+
+.dev-roadmap-details ol {
+  padding-left: 20px;
+}
+
+.dev-roadmap-details li {
+  margin-bottom: 5px;
+}
+
+.map-panel {
+  flex: 1;
+  position: relative;
+  z-index: 1;
+}
+
+.bottom-buttons {
+  position: absolute;
+  bottom: 0;
+  left: 15px;
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: 12px;
+  z-index: 20;
+  width: 410px; 
+}
+
+.custom-btn {
+  flex: 1 1 100px;
+  min-width: 110px;   
+  max-width: 130px;  
+  padding: 12px 0;
+  background: rgba(255, 214, 0, 0.5);;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  font-size: 1rem;
+  margin: 0;
+  cursor: pointer;
+  transition: background 0.2s;
+  text-align: center;
+}
+
+.custom-btn:disabled {
+  background: rgba(255, 214, 0, 0.3);
+  cursor: not-allowed;
+}
+.custom-btn:hover {
+  background: #1565c0;
+}
+
+.loading-time {
+  margin-top: 8px;
+  font-size: 0.95em !important;
+  color: #888;
 }
