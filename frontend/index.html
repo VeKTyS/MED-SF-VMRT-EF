@@ -6,7 +6,18 @@
     <title>RATE</title>
   </head>
   <body>
+    <div id="google_translate_element" style="position: fixed; bottom: 16px; left: 16px; z-index: 9999;"></div>
     <div id="app"></div>
+    <script type="text/javascript">
+      function googleTranslateElementInit() {
+        new google.translate.TranslateElement({
+          pageLanguage: 'fr',
+          includedLanguages: '', // toutes les langues
+          layout: google.translate.TranslateElement.InlineLayout.SIMPLE
+        }, 'google_translate_element');
+      }
+    </script>
+    <script src="//translate.google.com/translate_a/element.js?cb=googleTranslateElementInit"></script>
     <script type="module" src="/src/main.js"></script>
   </body>
 </html>
