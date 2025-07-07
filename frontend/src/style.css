@@ -53,10 +53,14 @@ footer {
     align-items: center;
     gap: 20px;
 }
-body, .main-layout {
+body {
   font-family: 'Inter', Arial, sans-serif;
-  background:#3a3a3a;
+  background: linear-gradient(135deg, #3a3a3a 0%, #000000 100%);
   color: #e0e6ed;
+  min-height: 100vh;
+  background-attachment: fixed;
+  background-size: cover;
+  background-repeat: no-repeat;
 }
 
 /*Jona style*/
@@ -71,7 +75,6 @@ p {
   color: #e0e6ed;
   margin-bottom: 20px;
 }
-
 .main-layout {
   display: flex;
   flex-direction: row;
